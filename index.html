@@ -105,27 +105,26 @@
   legend { font-size: 10.5px; color: var(--label); font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.07em; padding: 0 7px; }
 
-  /* ---- Responsive: phone single column → desktop two columns (inputs left, output right) ---- */
+  /* ---- Responsive: phone single column → desktop two columns (inputs left, output right) ----
+     The header band, the two-column body, and the footer are three separate stacked
+     blocks. Only the BODY is a grid; the footer lives outside it and so can never be
+     mis-placed by grid row math or by which tab panel is hidden. */
   @media (min-width: 1040px) {
-    .wrap:has(#result:not([hidden])) {
-      max-width: 1240px;
+    body:has(#result:not([hidden])) .wrap { max-width: 1240px; }
+    .wrap:has(#result:not([hidden])) .desk-body {
       display: grid;
       grid-template-columns: minmax(420px, 500px) 1fr;
       column-gap: 30px;
       align-items: start;
     }
-    .wrap:has(#result:not([hidden])) > header,
-    .wrap:has(#result:not([hidden])) > .sub,
-    .wrap:has(#result:not([hidden])) > .tabs { grid-column: 1 / -1; }
-    .wrap:has(#result:not([hidden])) > footer { grid-column: 1 / -1; grid-row: 6; }
-    .wrap:has(#result:not([hidden])) > #panelImport,
-    .wrap:has(#result:not([hidden])) > #panelCalc,
-    .wrap:has(#result:not([hidden])) > #msg { grid-column: 1; }
-    .wrap:has(#result:not([hidden])) > #result {
-      grid-column: 2; grid-row: 4 / span 2; align-self: start; position: sticky; top: 20px;
-      min-width: 0;
+    .wrap:has(#result:not([hidden])) .desk-body > #panelImport,
+    .wrap:has(#result:not([hidden])) .desk-body > #panelCalc,
+    .wrap:has(#result:not([hidden])) .desk-body > #msg { grid-column: 1; align-self: start; }
+    .wrap:has(#result:not([hidden])) .desk-body > #result {
+      grid-column: 2; grid-row: 1 / 99;
+      align-self: start; position: sticky; top: 20px; min-width: 0;
     }
-    .wrap:has(#result:not([hidden])) > #result > .card:first-child { margin-top: 18px; }
+    .wrap:has(#result:not([hidden])) .desk-body > #result > .card:first-child { margin-top: 16px; }
   }
 </style>
 </head>
@@ -143,6 +142,7 @@
     <button class="tab" id="tabCalc" role="tab" aria-selected="false" aria-controls="panelCalc">Calculate dope</button>
   </div>
 
+  <div class="desk-body">
   <div id="panelImport" role="tabpanel">
     <div class="card">
       <label class="drop" id="drop" for="file" tabindex="0" role="button" aria-label="Choose or drop a CSV file">
@@ -242,6 +242,7 @@
       <div class="hint">Generic schema (v1). When the watch&rsquo;s exact format is confirmed, only the emitter changes &mdash; not the parser.</div>
     </div>
   </div>
+  </div><!-- /.desk-body -->
 
   <footer>Offline PWA &middot; single file &middot; <span id="ver"></span></footer>
 </div>
