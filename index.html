@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f1115" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DOPE Convert" />
+<title>Ballistics DOPE Converter</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a;
+    --text: #e7eaf0; --muted: #9aa3b2; --accent: #d8772f; --accent2: #1d9e75;
+    --danger: #e24b4a; --ok: #1d9e75; --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5; -webkit-text-size-adjust: 100%; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 20px 16px 64px; }
+  header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; margin-top: 16px; }
+  .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 22px 16px;
+    text-align: center; transition: border-color .15s, background .15s; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .drop.drag { border-color: var(--accent); background: #1b1d24; }
+  .drop .ico { width: 26px; height: 26px; color: var(--muted); margin-bottom: 2px; }
+  .drop .lead { color: var(--text); font-size: 15px; }
+  .drop .lead strong { font-weight: 600; }
+  .drop small { color: var(--muted); font-size: 12px; }
+  input[type=file] { display: none; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+    padding: 9px 14px; border-radius: 9px; cursor: pointer; transition: background .12s, border-color .12s; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1a0e04; font-weight: 600; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .meta { background: var(--panel2); border-radius: 9px; padding: 10px 12px; }
+  .meta .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+  .meta .v { font-size: 16px; font-weight: 600; margin-top: 2px; }
+  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover { background: #1b1d24; }
+  pre { background: #0b0d11; border: 1px solid var(--line); border-radius: 9px; padding: 12px;
+    overflow: auto; max-height: 320px; font-size: 12px; color: #cdd4df;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 0; }
+  .msg { border-radius: 9px; padding: 11px 13px; margin-top: 12px; font-size: 14px; display: none; }
+  .msg.show { display: block; }
+  .msg.err { background: #2a1414; border: 1px solid var(--danger); color: #ffb4b3; }
+  .msg.ok { background: #11211b; border: 1px solid var(--ok); color: #9ff0d2; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .badge { display: inline-block; background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px; font-size: 11px; color: var(--muted); }
+  footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: center; }
+  a { color: var(--accent2); }
+  .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 4px; margin-top: 16px; }
+  .tab { flex: 1; text-align: center; padding: 9px 12px; border-radius: 7px; cursor: pointer;
+    color: var(--muted); border: none; background: transparent; font: inherit; transition: background .12s, color .12s; }
+  .tab[aria-selected="true"] { background: var(--panel2); color: var(--text); font-weight: 600; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .field input, .field select { font: inherit; color: var(--text); background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+  .disclaimer { background: #2a2110; border: 1px solid var(--accent); border-radius: 9px;
+    padding: 11px 13px; font-size: 13px; color: #f1c98a; margin-top: 14px; }
+  .disclaimer strong { color: #f6d9a8; }
+  fieldset { border: 1px solid var(--line); border-radius: 9px; padding: 12px; margin: 14px 0 0; }
+  legend { font-size: 12px; color: var(--muted); padding: 0 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Ballistics DOPE Converter</h1>
+    <span class="badge" id="netbadge">offline ready</span>
+  </header>
+  <div class="sub">Convert ballistics dope into watch JSON. Runs entirely on your device. No data leaves this page.</div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tabImport" role="tab" aria-selected="true" aria-controls="panelImport">Import a card</button>
+    <button class="tab" id="tabCalc" role="tab" aria-selected="false" aria-controls="panelCalc">Calculate dope</button>
+  </div>
+
+  <div id="panelImport" role="tabpanel">
+    <div class="card">
+      <label class="drop" id="drop" for="file" tabindex="0" role="button" aria-label="Choose or drop a CSV file">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+        </svg>
+        <div class="lead"><strong>Drop a CSV</strong> or click to choose</div>
+        <small>Applied Ballistics or Berger / AB calculator export</small>
+      </label>
+      <input type="file" id="file" accept=".csv,text/csv" />
+    </div>
+  </div>
+
+  <div id="panelCalc" role="tabpanel" hidden>
+    <div class="card">
+      <div class="form-grid">
+        <div class="field"><label for="cMv">Muzzle velocity (fps)</label><input id="cMv" type="number" inputmode="decimal" value="2900" /></div>
+        <div class="field"><label for="cBc">Ballistic coefficient</label><input id="cBc" type="number" inputmode="decimal" step="0.001" value="0.262" /></div>
+        <div class="field"><label for="cBw">Bullet weight (gr)</label><input id="cBw" type="number" inputmode="decimal" value="103" /></div>
+        <div class="field"><label for="cModel">Drag model</label><select id="cModel"><option value="G7">G7 (modern/boat-tail)</option><option value="G1">G1 (flat-base/older)</option></select></div>
+        <div class="field"><label for="cZero">Zero range (yd)</label><input id="cZero" type="number" inputmode="numeric" value="100" /></div>
+        <div class="field"><label for="cSight">Sight height (in)</label><input id="cSight" type="number" inputmode="decimal" step="0.1" value="1.5" /></div>
+        <div class="field"><label for="cMax">Max range (yd)</label><input id="cMax" type="number" inputmode="numeric" value="1000" /></div>
+        <div class="field"><label for="cStep">Step (yd)</label><input id="cStep" type="number" inputmode="numeric" value="100" /></div>
+        <div class="field"><label for="cTemp">Temperature (&deg;F)</label><input id="cTemp" type="number" inputmode="decimal" value="59" /></div>
+        <div class="field"><label for="cPress">Pressure (inHg)</label><input id="cPress" type="number" inputmode="decimal" step="0.01" value="29.92" /></div>
+        <div class="field"><label for="cWind">Wind speed (mph)</label><input id="cWind" type="number" inputmode="decimal" value="0" /></div>
+        <div class="field"><label for="cWindDir">Wind dir (o'clock)</label><input id="cWindDir" type="text" value="3" /></div>
+      </div>
+
+      <fieldset>
+        <legend>True to your rifle (optional, recommended)</legend>
+        <div class="form-grid">
+          <div class="field"><label for="cTrueRange">Known range (yd)</label><input id="cTrueRange" type="number" inputmode="numeric" placeholder="e.g. 1000" /></div>
+          <div class="field"><label for="cTrueMil">Observed elevation (mil)</label><input id="cTrueMil" type="number" inputmode="decimal" step="0.1" placeholder="what you actually dialed" /></div>
+        </div>
+        <div class="hint">Enter one real, confirmed drop &mdash; ideally at or near your max range &mdash; and the solver calibrates to your actual rifle. True near the far end, not the middle.</div>
+      </fieldset>
+
+      <div class="row" style="margin-top:14px;">
+        <button id="calcBtn" class="primary">Calculate dope</button>
+      </div>
+
+      <div class="disclaimer">
+        <strong>Estimate &mdash; verify by live fire.</strong> This is an independent open-source solver, <strong>not</strong> the Applied Ballistics engine and not affiliated with or endorsed by Applied Ballistics or Berger. Computed solutions are approximate, especially past the supersonic range. Always confirm against real impacts before relying on this dope.
+      </div>
+    </div>
+  </div>
+
+  <div class="msg" id="msg" role="status" aria-live="polite"></div>
+
+  <div id="result" hidden>
+    <div class="card">
+      <h2>Card metadata</h2>
+      <div class="meta-grid" id="metaGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Dope table <span class="badge" id="rowcount"></span></h2>
+      <div class="tablewrap"><table id="dope"><thead></thead><tbody></tbody></table></div>
+      <div class="hint">Elevation/windage shown as exported (value + direction). Up/Right are positive when signed.</div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content: space-between; margin-bottom: 12px;">
+        <h2 style="margin:0;">Output JSON</h2>
+        <div class="row">
+          <button id="copyBtn">Copy</button>
+          <button id="dlBtn" class="primary">Download .json</button>
+        </div>
+      </div>
+      <pre id="json"></pre>
+      <div class="hint">Generic schema (v1). When the watch&rsquo;s exact format is confirmed, only the emitter changes &mdash; not the parser.</div>
+    </div>
+  </div>
+
+  <footer>Offline PWA &middot; single file &middot; <span id="ver"></span></footer>
+</div>
+
+<script>
+"use strict";
+
+/* ----------------------------------------------------------------------------
+   Applied Ballistics "Target Card Export (Custom)" parser.
+
+   Input shape (observed across sample exports):
+     line 0 : "Target Card Export (Custom)"        <- banner, must be present
+     line 1 : MV [FPS],2900,BW [GR],103.0,BD [IN],0.243,BC [G7],0.262
+     line 2 : Wind Speed [MPH],5,Wind Speed 2 [MPH],10,TEMP [°F],63,Pressure [INHG],29.98
+     line 3 : Humidity [%],62,Wind Direction,12:00
+     line 4 : <column headers, units in [BRACKETS]>
+     line 5+: data rows keyed by range
+
+   Design notes:
+   - Metadata lines 1-3 are flat key,value,key,value... pairs. We read them as
+     pairs rather than by fixed position, so reordering or extra pairs survive.
+   - Column headers carry units in brackets: "Elevation [MRAD]". We split the
+     unit out so it lives once in the schema, not on every cell.
+   - Directional cells like "8.5 U" / "1.4 L" / "0.1 D" are split into
+     {value, dir}. Signed value is derived (U/R = +, D/L = -) for convenience.
+   - We FAIL LOUD: a missing banner, missing header row, or unparseable numeric
+     range throws with a specific message. Better a clear error than silent
+     bad dope on a watch.
+---------------------------------------------------------------------------- */
+
+const SCHEMA_VERSION = "1.0";
+const BANNER = "Target Card Export (Custom)";
+
+// Columns whose values use a trailing direction letter.
+const DIRECTIONAL = new Set(["Elevation", "Windage", "Windage 2", "Lead", "Dialed El."]);
+// U=up R=right => positive ; D=down L=left => negative
+const DIR_SIGN = { U: 1, R: 1, D: -1, L: -1 };
+
+class ParseError extends Error {}
+
+// Minimal, correct CSV line split. AB exports are simple comma-delimited with
+// no embedded commas in fields, but we handle quotes defensively anyway.
+function splitCsvLine(line) {
+  const out = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } else { inQ = false; }
+      } else { cur += c; }
+    } else if (c === '"') { inQ = true; }
+    else if (c === ",") { out.push(cur); cur = ""; }
+    else { cur += c; }
+  }
+  out.push(cur);
+  return out.map(s => s.trim());
+}
+
+// "Elevation [MRAD]" -> { name: "Elevation", unit: "MRAD" }
+// "Range [Y]"        -> { name: "Range", unit: "Y" }
+// "Mach"             -> { name: "Mach", unit: null }
+function parseHeader(h) {
+  const m = h.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
+  if (m) return { name: m[1].trim(), unit: m[2].trim() || null };
+  return { name: h.trim(), unit: null };
+}
+
+// "8.5 U" -> { raw:"8.5 U", value:8.5, dir:"U", signed:8.5 }
+// "0.1 D" -> { raw:"0.1 D", value:0.1, dir:"D", signed:-0.1 }
+function parseDirectional(raw) {
+  const s = (raw || "").trim();
+  const m = s.match(/^(-?\d+(?:\.\d+)?)\s*([UDLR])?$/i);
+  if (!m) return { raw: s, value: null, dir: null, signed: null };
+  const value = parseFloat(m[1]);
+  const dir = m[2] ? m[2].toUpperCase() : null;
+  const sign = dir ? (DIR_SIGN[dir] || 1) : 1;
+  return { raw: s, value, dir, signed: +(value * sign).toFixed(6) };
+}
+
+// Plain numeric cell -> number or null (keeps original string if non-numeric).
+function parseNumber(raw) {
+  const s = (raw || "").trim();
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : s;
+}
+
+// Read flat key,value pairs from a metadata line into [{name,unit,value}].
+function parseMetaLine(cells) {
+  const pairs = [];
+  for (let i = 0; i + 1 < cells.length; i += 2) {
+    const key = cells[i];
+    if (key === "") continue;
+    const { name, unit } = parseHeader(key);
+    pairs.push({ name, unit, value: parseNumber(cells[i + 1]) });
+  }
+  return pairs;
+}
+
+function parseAB(text) {
+  // Normalise newlines and strip a UTF-8 BOM if present.
+  const lines = text.replace(/^﻿/, "").split(/\r\n|\r|\n/);
+  // Drop trailing blank lines only; keep internal structure.
+  while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+  if (lines.length === 0) throw new ParseError("File is empty.");
+  if (lines.length < 5) {
+    throw new ParseError("File is too short — missing metadata or dope table.");
+  }
+
+  // Metadata: lines 1..N until we hit the column-header row. The header row is
+  // the one starting with "Range" (with or without a unit bracket).
+  let headerIdx = -1;
+  for (let i = 1; i < lines.length; i++) {
+    const first = splitCsvLine(lines[i])[0] || "";
+    if (/^Range\b/.test(first)) { headerIdx = i; break; }
+  }
+  if (headerIdx === -1) {
+    throw new ParseError('Could not find the dope table header row (expected a column starting with "Range").');
+  }
+
+  const metadata = [];
+  for (let i = 1; i < headerIdx; i++) {
+    const cells = splitCsvLine(lines[i]);
+    for (const p of parseMetaLine(cells)) metadata.push(p);
+  }
+  // Index metadata by name for convenient lookup, but keep the ordered list too.
+  const metaByName = {};
+  for (const p of metadata) metaByName[p.name] = p;
+
+  // Columns.
+  const headerCells = splitCsvLine(lines[headerIdx]).filter(c => c !== "");
+  const columns = headerCells.map(parseHeader);
+  const colNames = columns.map(c => c.name);
+
+  // Data rows.
+  const rows = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (lines[i].trim() === "") continue;
+    const cells = splitCsvLine(lines[i]);
+    // Tolerate trailing empty cells; require at least the range value.
+    const rangeRaw = cells[0];
+    const range = parseNumber(rangeRaw);
+    if (typeof range !== "number") {
+      throw new ParseError(`Row ${i + 1}: first column "${rangeRaw}" is not a numeric range.`);
+    }
+    const row = { range };
+    for (let c = 0; c < columns.length; c++) {
+      const name = columns[c].name;
+      if (name === "Range") continue;
+      const raw = cells[c];
+      if (DIRECTIONAL.has(name)) row[name] = parseDirectional(raw);
+      else row[name] = parseNumber(raw);
+    }
+    rows.push(row);
+  }
+  if (rows.length === 0) throw new ParseError("No dope rows found below the header.");
+
+  // Canonical metadata namespace (shared across formats) so the emitter never
+  // depends on a particular source's labels.
+  const bcModel = (metadata.find(p => p.name === "BC") || {}).unit || null;
+  const canonical = {
+    muzzleVelocity: { value: g(metaByName, "MV"), unit: u(metaByName, "MV") || "FPS" },
+    bulletWeight:   { value: g(metaByName, "BW"), unit: u(metaByName, "BW") || "GR" },
+    bulletDiameter: { value: g(metaByName, "BD"), unit: u(metaByName, "BD") || "IN" },
+    ballisticCoefficient: { value: g(metaByName, "BC"), model: bcModel },
+    windSpeed:    { value: g(metaByName, "Wind Speed"),   unit: "MPH" },
+    windSpeed2:   { value: g(metaByName, "Wind Speed 2"), unit: "MPH" },
+    windDirection: g(metaByName, "Wind Direction"),
+    temperature:  { value: g(metaByName, "TEMP"),     unit: "F" },
+    pressure:     { value: g(metaByName, "Pressure"), unit: "INHG" },
+    humidity:     { value: g(metaByName, "Humidity"), unit: "%" }
+  };
+
+  return { sourceFormat: "applied-ballistics-target-card", banner: BANNER,
+           metadata, metaByName, canonical, columns, rows };
+}
+
+// Helpers for pulling value/unit out of a metaByName index.
+function g(m, k) { return m[k] ? m[k].value : null; }
+function u(m, k) { return m[k] ? m[k].unit : null; }
+
+/* ----------------------------------------------------------------------------
+   Berger / AB online-calculator "print card" parser.
+
+   Observed shape (copy-paste from the Berger calculator into a spreadsheet):
+     Input Parameters,,,,,
+     Bullet Diameter,0.308 inches,Zero Range,100 yards,,
+     Bullet Weight,215 grains,Sight Height,2.00 in,,
+     Ballistic Coefficient,0.354,Muzzle Velocity,2915 fps,,
+     Temperature,59 F,Wind Speed,0.00 mph,,
+     Altitude,0 feet,Wind Direction,9 o'clock,,
+     Inclination,0 degrees,Berger Bullets,Copyright 2013,,
+     (blank rows)
+     Range Card,,,,,
+     Range,Velocity,Energy,Elevation,Windage,TOF
+     (y),(fps),(ft-lbs),(mils),(mils),(s)
+     100,2781,3693,0,0,0.11
+     ...
+
+   Key differences from the AB target card, all handled here:
+   - Different banner ("Input Parameters") and metadata labels.
+   - Units are inline in the value cell ("0.308 inches") — split out.
+   - Column units are on a SEPARATE row under the header names, in (parens).
+   - Elevation/Windage are SIGNED numbers, no U/D/L/R letters. We map the sign
+     back to a direction so the IR is uniform: elevation -0.35 -> down 0.35,
+     windage +1.2 -> right 1.2. signed value is always preserved as source of truth.
+---------------------------------------------------------------------------- */
+
+// Map Berger metadata labels to canonical keys.
+const BERGER_META = {
+  "Bullet Diameter": "BD", "Bullet Weight": "BW", "Ballistic Coefficient": "BC",
+  "Muzzle Velocity": "MV", "Temperature": "TEMP", "Wind Speed": "Wind Speed",
+  "Wind Direction": "Wind Direction", "Zero Range": "Zero Range",
+  "Sight Height": "Sight Height", "Altitude": "Altitude", "Inclination": "Inclination"
+};
+// Normalise common inline unit words to the short codes used elsewhere.
+const UNIT_ALIAS = {
+  inches: "IN", in: "IN", grains: "GR", gr: "GR", fps: "FPS", mph: "MPH",
+  yards: "Y", yd: "Y", feet: "FT", ft: "FT", f: "F", degrees: "DEG", mils: "MIL", mil: "MIL"
+};
+
+// "0.308 inches" -> { value: 0.308, unit: "IN" } ; "9 o'clock" -> { value:"9 o'clock", unit:null }
+// Only split off a trailing unit when it is a KNOWN unit word. Anything else
+// (e.g. "o'clock", "degrees" we keep as DEG) stays attached so values like
+// clock-position wind directions survive intact as strings.
+function splitInlineValueUnit(raw) {
+  const s = (raw || "").trim();
+  const m = s.match(/^(-?\d+(?:\.\d+)?)\s*([A-Za-z][A-Za-z.]*)?$/);
+  if (!m) return { value: parseNumber(s), unit: null };
+  const word = m[2] ? m[2].trim().toLowerCase() : null;
+  // No trailing word -> plain number.
+  if (!word) return { value: parseFloat(m[1]), unit: null };
+  // Trailing word must be a recognised unit; otherwise treat the whole cell as
+  // a string (so "9 o'clock" is preserved, not mis-split into 9 + o'clock).
+  if (Object.prototype.hasOwnProperty.call(UNIT_ALIAS, word)) {
+    return { value: parseFloat(m[1]), unit: UNIT_ALIAS[word] };
+  }
+  return { value: s, unit: null };
+}
+
+// Signed elevation/windage -> uniform directional object.
+// kind: "el" (up/down) or "wind" (left/right).
+function signedToDirectional(num, kind) {
+  if (num === null || num === undefined || Number.isNaN(num)) return { raw: "", value: null, dir: null, signed: null };
+  const signed = +num.toFixed(6);
+  let dir;
+  if (signed === 0) dir = null;
+  else if (kind === "el") dir = signed > 0 ? "U" : "D";
+  else dir = signed > 0 ? "R" : "L";
+  const value = Math.abs(signed);
+  const raw = dir ? `${value} ${dir}` : `${value}`;
+  return { raw, value, dir, signed };
+}
+
+function parseBerger(text) {
+  const lines = text.replace(/^﻿/, "").split(/\r\n|\r|\n/);
+  while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+  if (lines.length === 0) throw new ParseError("File is empty.");
+
+  // Find the metadata block (top) and the "Range Card" section header.
+  let rangeCardIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^Range Card\b/i.test((splitCsvLine(lines[i])[0] || ""))) { rangeCardIdx = i; break; }
+  }
+  // Header row = first row at/after the section that starts with "Range".
+  let headerIdx = -1;
+  const searchFrom = rangeCardIdx >= 0 ? rangeCardIdx + 1 : 0;
+  for (let i = searchFrom; i < lines.length; i++) {
+    if (/^Range\b/i.test((splitCsvLine(lines[i])[0] || ""))) { headerIdx = i; break; }
+  }
+  if (headerIdx === -1) throw new ParseError('Could not find the "Range" column header in the Berger card.');
+
+  // Metadata: every row above the Range Card section (or above the header).
+  const metaEnd = rangeCardIdx >= 0 ? rangeCardIdx : headerIdx;
+  const metadata = [];
+  for (let i = 0; i < metaEnd; i++) {
+    const cells = splitCsvLine(lines[i]);
+    // Pairs: label, value, [label, value, ...]
+    for (let c = 0; c + 1 < cells.length; c += 2) {
+      const label = cells[c];
+      if (!label || /^Input Parameters$/i.test(label) || /^Berger Bullets$/i.test(label)) continue;
+      const key = BERGER_META[label] || label;
+      const { value, unit } = splitInlineValueUnit(cells[c + 1]);
+      metadata.push({ name: key, unit, value });
+    }
+  }
+  const metaByName = {};
+  for (const p of metadata) metaByName[p.name] = p;
+
+  // Column names + the units row directly beneath.
+  const names = splitCsvLine(lines[headerIdx]).filter(c => c !== "");
+  let unitsRow = [];
+  let firstDataIdx = headerIdx + 1;
+  const maybeUnits = splitCsvLine(lines[headerIdx + 1] || "");
+  // A units row is all-parenthesised tokens like "(y)","(fps)".
+  if (maybeUnits.length && maybeUnits.every(c => c === "" || /^\(.*\)$/.test(c.trim()))) {
+    unitsRow = maybeUnits;
+    firstDataIdx = headerIdx + 2;
+  }
+  const columns = names.map((nm, i) => {
+    let unit = null;
+    const raw = (unitsRow[i] || "").trim().replace(/^\(|\)$/g, "");
+    if (raw) unit = UNIT_ALIAS[raw.toLowerCase()] || raw.toUpperCase();
+    return { name: nm.trim(), unit };
+  });
+
+  // Data rows.
+  const rows = [];
+  for (let i = firstDataIdx; i < lines.length; i++) {
+    if (lines[i].trim() === "") continue;
+    const cells = splitCsvLine(lines[i]);
+    const range = parseNumber(cells[0]);
+    if (typeof range !== "number") {
+      throw new ParseError(`Row ${i + 1}: first column "${cells[0]}" is not a numeric range.`);
+    }
+    const row = { range };
+    for (let c = 0; c < columns.length; c++) {
+      const name = columns[c].name;
+      if (/^Range$/i.test(name)) continue;
+      const num = parseNumber(cells[c]);
+      if (/^Elevation$/i.test(name)) row[name] = signedToDirectional(typeof num === "number" ? num : null, "el");
+      else if (/^Windage/i.test(name)) row[name] = signedToDirectional(typeof num === "number" ? num : null, "wind");
+      else row[name] = num;
+    }
+    rows.push(row);
+  }
+  if (rows.length === 0) throw new ParseError("No dope rows found in the Berger card.");
+
+  const canonical = {
+    muzzleVelocity: { value: g(metaByName, "MV"), unit: u(metaByName, "MV") || "FPS" },
+    bulletWeight:   { value: g(metaByName, "BW"), unit: u(metaByName, "BW") || "GR" },
+    bulletDiameter: { value: g(metaByName, "BD"), unit: u(metaByName, "BD") || "IN" },
+    ballisticCoefficient: { value: g(metaByName, "BC"), model: u(metaByName, "BC") || null },
+    windSpeed:    { value: g(metaByName, "Wind Speed"), unit: u(metaByName, "Wind Speed") || "MPH" },
+    windSpeed2:   { value: null, unit: "MPH" },
+    windDirection: g(metaByName, "Wind Direction"),
+    temperature:  { value: g(metaByName, "TEMP"), unit: u(metaByName, "TEMP") || "F" },
+    pressure:     { value: g(metaByName, "Pressure"), unit: "INHG" },
+    humidity:     { value: g(metaByName, "Humidity"), unit: "%" }
+  };
+
+  return { sourceFormat: "berger-ab-calculator", banner: "Input Parameters",
+           metadata, metaByName, canonical, columns, rows };
+}
+
+/* Sniff the file and route to the right parser. Detection is based on stable
+   structural markers, not a single brittle banner string. */
+function detectFormat(text) {
+  const head = text.replace(/^﻿/, "").split(/\r\n|\r|\n/).slice(0, 15);
+  const joined = head.join("\n");
+  if (head[0] && head[0].trim() === BANNER) return "ab";
+  if (/^Input Parameters/i.test(head[0] || "") || /^Range Card/im.test(joined)) return "berger";
+  // Fallbacks: AB metadata uses bracketed units (MV [FPS]); Berger uses "Input Parameters".
+  if (/\bMV \[FPS\]/.test(joined)) return "ab";
+  return "unknown";
+}
+
+function parse(text) {
+  const fmt = detectFormat(text);
+  if (fmt === "ab") return parseAB(text);
+  if (fmt === "berger") return parseBerger(text);
+  throw new ParseError(
+    "Unrecognised file. Supported: Applied Ballistics target-card export, or Berger / AB " +
+    "online-calculator range card. Got first line: \"" +
+    (text.split(/\r\n|\r|\n/)[0] || "").slice(0, 60) + "\"."
+  );
+}
+
+/* ----------------------------------------------------------------------------
+   Ballistics solver (G1/G7 point-mass), validated against known AB cards.
+   Velocity/ToF match AB tightly; elevation within ~1 click supersonic, more in
+   transonic. Truing to a real far-range drop tightens it. NOT the AB engine.
+---------------------------------------------------------------------------- */
+const G1_TABLE = [[0,0.2629],[0.05,0.2558],[0.1,0.2487],[0.15,0.2413],[0.2,0.2344],[0.25,0.2278],[0.3,0.2214],[0.35,0.2155],[0.4,0.2104],[0.45,0.2061],[0.5,0.2032],[0.55,0.202],[0.6,0.2034],[0.7,0.2165],[0.725,0.223],[0.75,0.2313],[0.775,0.2417],[0.8,0.2546],[0.825,0.2706],[0.85,0.2901],[0.875,0.3136],[0.9,0.3415],[0.925,0.3734],[0.95,0.4084],[0.975,0.4448],[1,0.4805],[1.025,0.5136],[1.05,0.5427],[1.075,0.5677],[1.1,0.5883],[1.125,0.6053],[1.15,0.6191],[1.2,0.6393],[1.25,0.6518],[1.3,0.6589],[1.35,0.6621],[1.4,0.6625],[1.45,0.6607],[1.5,0.6573],[1.6,0.6472],[1.7,0.6342],[1.8,0.6196],[1.9,0.6042],[2,0.5885],[2.2,0.5573],[2.4,0.5281],[2.6,0.5014],[2.8,0.4774],[3,0.4555],[3.5,0.4119],[4,0.3792],[4.5,0.3556],[5,0.337]];
+const G7_TABLE = [[0,0.1198],[0.05,0.1197],[0.1,0.1196],[0.15,0.1194],[0.2,0.1193],[0.25,0.1194],[0.3,0.1194],[0.35,0.1194],[0.4,0.1193],[0.45,0.1193],[0.5,0.1194],[0.55,0.1193],[0.6,0.1194],[0.65,0.1197],[0.7,0.1202],[0.725,0.1207],[0.75,0.1215],[0.775,0.1226],[0.8,0.1242],[0.825,0.1266],[0.85,0.1306],[0.875,0.1368],[0.9,0.1464],[0.925,0.166],[0.95,0.2054],[0.975,0.2993],[1,0.3803],[1.025,0.4015],[1.05,0.4043],[1.075,0.4034],[1.1,0.4014],[1.125,0.3987],[1.15,0.3955],[1.2,0.3884],[1.25,0.381],[1.3,0.3732],[1.35,0.3657],[1.4,0.358],[1.5,0.344],[1.55,0.3376],[1.6,0.3315],[1.65,0.326],[1.7,0.3209],[1.75,0.316],[1.8,0.3117],[1.9,0.3042],[2,0.298],[2.2,0.2873],[2.4,0.2779],[2.6,0.2688],[2.8,0.2603],[3,0.2523],[3.5,0.2339],[4,0.2179],[4.5,0.2034],[5,0.1912]];
+const DRAG_K = 2.0491e-4; // calibrated to AB velocity decay
+
+function cdInterp(table, mach) {
+  if (mach <= table[0][0]) return table[0][1];
+  const last = table[table.length - 1];
+  if (mach >= last[0]) return last[1];
+  for (let i = 1; i < table.length; i++) {
+    if (mach <= table[i][0]) {
+      const [m0, c0] = table[i - 1], [m1, c1] = table[i];
+      return c0 + (mach - m0) / (m1 - m0) * (c1 - c0);
+    }
+  }
+  return last[1];
+}
+function densityRatio(tF, pInHg) { return (pInHg / 29.92) * (518.67 / (tF + 459.67)); }
+function speedOfSound(tF) { return 49.0223 * Math.sqrt(tF + 459.67); }
+
+function solve(o) {
+  const table = o.dragModel === "G1" ? G1_TABLE : G7_TABLE;
+  const rho = densityRatio(o.tempF, o.pressureInHg), vS = speedOfSound(o.tempF), g = 32.174;
+  const bc = o.bc;
+  const retard = (v) => DRAG_K * rho * cdInterp(table, v / vS) * v * v / bc;
+  const dt = 0.0005;
+
+  function heightAtZero(angle) {
+    let x = 0, y = -o.sightHeightIn / 12, vx = o.muzzleVelocity * Math.cos(angle), vy = o.muzzleVelocity * Math.sin(angle), t = 0;
+    const zx = o.zeroRangeYd * 3; let px = x, py = y;
+    while (x < zx && t < 10) {
+      const v = Math.hypot(vx, vy), a = retard(v);
+      px = x; py = y; x += vx * dt; y += vy * dt;
+      vx += -a * (vx / v) * dt; vy += (-a * (vy / v) - g) * dt; t += dt;
+    }
+    return py + (zx - px) / (x - px) * (y - py);
+  }
+  let lo = -0.02, hi = 0.05;
+  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (heightAtZero(m) > 0) hi = m; else lo = m; }
+  const angle = (lo + hi) / 2;
+
+  const targets = [];
+  for (let r = o.stepYd; r <= o.maxRangeYd; r += o.stepYd) targets.push(r);
+  let x = 0, y = -o.sightHeightIn / 12, vx = o.muzzleVelocity * Math.cos(angle), vy = o.muzzleVelocity * Math.sin(angle), t = 0;
+  let ti = 0, prevV = o.muzzleVelocity; const out = [];
+  while (x / 3 <= o.maxRangeYd + 5 && t < 12) {
+    const v = Math.hypot(vx, vy), a = retard(v);
+    const nx = x + vx * dt, ny = y + vy * dt;
+    vx += -a * (vx / v) * dt; vy += (-a * (vy / v) - g) * dt; t += dt;
+    const nv = Math.hypot(vx, vy);
+    while (ti < targets.length && nx / 3 >= targets[ti]) {
+      const tx = targets[ti] * 3, f = (tx - x) / (nx - x);
+      const yy = y + f * (ny - y), vv = prevV + f * (nv - prevV), tt = (t - dt) + f * dt;
+      const dropIn = yy * 12;
+      out.push({
+        rangeYd: targets[ti], velocity: Math.round(vv), dropIn: +dropIn.toFixed(2),
+        elevationMil: targets[ti] > 0 ? +((-dropIn) / (0.036 * targets[ti])).toFixed(2) : 0,
+        tof: +tt.toFixed(2)
+      });
+      ti++;
+    }
+    x = nx; y = ny; prevV = nv;
+  }
+  return out;
+}
+
+// Calibrate effective BC to one observed drop. Bisection on a multiplier.
+function trueBC(o, atRangeYd, observedMil) {
+  const base = Object.assign({}, o, { maxRangeYd: atRangeYd, stepYd: atRangeYd });
+  const elevAt = (bc) => {
+    const s = solve(Object.assign({}, base, { bc }));
+    const row = s.find(r => r.rangeYd === atRangeYd) || s[s.length - 1];
+    return row ? row.elevationMil : Infinity;
+  };
+  let lo = 0.5, hi = 2.0;
+  for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (elevAt(o.bc * m) > observedMil) lo = m; else hi = m; }
+  return +(o.bc * (lo + hi) / 2).toFixed(4);
+}
+
+/* Build the shared IR from solver output, so the SAME emitter/render path is
+   reused. Elevation is signed via the directional shape (up = positive). */
+function solverToIR(opts, rows) {
+  const columns = [
+    { name: "Range", unit: "Y" },
+    { name: "Elevation", unit: "MIL" },
+    { name: "Velocity", unit: "FPS" },
+    { name: "Energy", unit: "FT-LB" },
+    { name: "Drop", unit: "IN" },
+    { name: "ToF", unit: "S" }
+  ];
+  // Energy (ft-lbf) = m v^2 / 450240, m in grains.
+  const bw = opts.bulletWeightGr || null;
+  const irRows = rows.map(r => {
+    const signed = +r.elevationMil.toFixed(2);
+    const dir = signed === 0 ? null : (signed > 0 ? "U" : "D");
+    const energy = bw ? Math.round(bw * r.velocity * r.velocity / 450240) : null;
+    return {
+      range: r.rangeYd,
+      Elevation: { raw: dir ? `${Math.abs(signed)} ${dir}` : `${Math.abs(signed)}`, value: Math.abs(signed), dir, signed },
+      Velocity: r.velocity,
+      Energy: energy,
+      Drop: r.dropIn,
+      ToF: r.tof
+    };
+  });
+  const canonical = {
+    muzzleVelocity: { value: opts.muzzleVelocity, unit: "FPS" },
+    bulletWeight:   { value: opts.bulletWeightGr || null, unit: "GR" },
+    bulletDiameter: { value: null, unit: "IN" },
+    ballisticCoefficient: { value: opts.bc, model: opts.dragModel },
+    windSpeed:    { value: opts.windSpeed ?? null, unit: "MPH" },
+    windSpeed2:   { value: null, unit: "MPH" },
+    windDirection: opts.windDirection ?? null,
+    temperature:  { value: opts.tempF, unit: "F" },
+    pressure:     { value: opts.pressureInHg, unit: "INHG" },
+    humidity:     { value: null, unit: "%" }
+  };
+  return { sourceFormat: "computed-solver", banner: "Computed", metadata: [], metaByName: {}, canonical, columns, rows: irRows };
+}
+
+/* ----------------------------------------------------------------------------
+   Emitter: neutral IR -> generic JSON (v1).
+   ISOLATED ON PURPOSE. When the watch's exact format is known, replace the body
+   of emit() — nothing upstream needs to change.
+---------------------------------------------------------------------------- */
+function emit(ir, sourceName) {
+  const c = ir.canonical;
+
+  const rows = ir.rows.map(r => {
+    const o = { range: r.range };
+    for (const col of ir.columns) {
+      const name = col.name;
+      if (/^Range$/i.test(name)) continue;
+      const v = r[name];
+      const key = camel(name);
+      if (v && typeof v === "object" && "signed" in v) {
+        o[key] = { value: v.value, dir: v.dir, signed: v.signed };
+      } else {
+        o[key] = v;
+      }
+    }
+    return o;
+  });
+
+  return {
+    schema: "ballistics-dope",
+    schemaVersion: SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    source: { format: ir.sourceFormat || "unknown", file: sourceName || null },
+    profile: {
+      muzzleVelocity: c.muzzleVelocity,
+      bulletWeight:   c.bulletWeight,
+      bulletDiameter: c.bulletDiameter,
+      ballisticCoefficient: c.ballisticCoefficient
+    },
+    atmosphere: {
+      windSpeed:     c.windSpeed,
+      windSpeed2:    c.windSpeed2,
+      windDirection: c.windDirection,
+      temperature:   c.temperature,
+      pressure:      c.pressure,
+      humidity:      c.humidity
+    },
+    units: Object.fromEntries(
+      ir.columns.filter(col => col.unit).map(col => [camel(col.name), col.unit])
+    ),
+    dope: rows
+  };
+}
+
+// "Max Ord. Range" -> "maxOrdRange" ; "Windage 2" -> "windage2"
+function camel(name) {
+  const cleaned = name.replace(/[^\w\s]/g, "").trim();
+  const parts = cleaned.split(/\s+/);
+  return parts.map((p, i) => {
+    const low = p.toLowerCase();
+    return i === 0 ? low : low.charAt(0).toUpperCase() + low.slice(1);
+  }).join("");
+}
+
+/* ---------------------------------- UI ---------------------------------- */
+const $ = sel => document.querySelector(sel);
+const drop = $("#drop"), fileInput = $("#file"), msg = $("#msg");
+const resultEl = $("#result");
+let currentJson = null, currentName = "dope";
+
+function showMsg(text, kind) {
+  msg.textContent = text;
+  msg.className = "msg show " + kind;
+}
+function clearMsg() { msg.className = "msg"; msg.textContent = ""; }
+
+function render(ir, json, name) {
+  // Metadata cards, rendered from the canonical namespace so both formats show
+  // the same fields. Cards with no value (e.g. Berger has no 2nd wind) are skipped.
+  const mg = $("#metaGrid"); mg.innerHTML = "";
+  const c = ir.canonical;
+  const cards = [
+    ["Muzzle velocity", c.muzzleVelocity.value, c.muzzleVelocity.unit],
+    ["Bullet weight",   c.bulletWeight.value,    c.bulletWeight.unit],
+    ["Bullet diameter", c.bulletDiameter.value,  c.bulletDiameter.unit],
+    ["Ballistic coeff", c.ballisticCoefficient.value, c.ballisticCoefficient.model],
+    ["Wind speed",      c.windSpeed.value,       c.windSpeed.unit],
+    ["Wind speed 2",    c.windSpeed2.value,      c.windSpeed2.unit],
+    ["Wind direction",  c.windDirection,         null],
+    ["Temperature",     c.temperature.value,     c.temperature.unit],
+    ["Pressure",        c.pressure.value,        c.pressure.unit],
+    ["Humidity",        c.humidity.value,        c.humidity.unit]
+  ];
+  for (const [label, value, unit] of cards) {
+    if (value === null || value === undefined || value === "") continue;
+    const cell = document.createElement("div");
+    cell.className = "meta";
+    cell.innerHTML = `<div class="k"></div><div class="v"></div>`;
+    cell.querySelector(".k").textContent = unit ? `${label} (${unit})` : label;
+    cell.querySelector(".v").textContent = value;
+    mg.appendChild(cell);
+  }
+
+  // Dope table.
+  const thead = $("#dope thead"), tbody = $("#dope tbody");
+  thead.innerHTML = ""; tbody.innerHTML = "";
+  const htr = document.createElement("tr");
+  for (const col of ir.columns) {
+    const th = document.createElement("th");
+    th.textContent = col.unit ? `${col.name} (${col.unit})` : col.name;
+    htr.appendChild(th);
+  }
+  thead.appendChild(htr);
+  for (const r of ir.rows) {
+    const tr = document.createElement("tr");
+    for (const col of ir.columns) {
+      const td = document.createElement("td");
+      if (/^Range$/i.test(col.name)) td.textContent = r.range;
+      else {
+        const v = r[col.name];
+        if (v && typeof v === "object" && "raw" in v) td.textContent = v.raw;
+        else td.textContent = (v === null || v === undefined ? "" : v);
+      }
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  $("#rowcount").textContent = ir.rows.length + " rows";
+
+  // JSON.
+  $("#json").textContent = JSON.stringify(json, null, 2);
+  resultEl.hidden = false;
+}
+
+function handleText(text, name) {
+  clearMsg();
+  try {
+    const ir = parse(text);
+    const baseName = (name || "dope").replace(/\.[^.]+$/, "");
+    const json = emit(ir, name || null);
+    currentJson = json; currentName = baseName;
+    render(ir, json, baseName);
+    const label = ir.sourceFormat === "berger-ab-calculator" ? "Berger / AB calculator" : "Applied Ballistics target card";
+    showMsg(`Parsed ${ir.rows.length} dope rows from "${name}" — detected ${label}.`, "ok");
+  } catch (e) {
+    resultEl.hidden = true;
+    currentJson = null;
+    const detail = (e instanceof ParseError) ? e.message : ("Unexpected error: " + e.message);
+    showMsg(detail, "err");
+  }
+}
+
+function handleFile(file) {
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showMsg("File is unexpectedly large (>5 MB) — is this a target-card CSV?", "err"); return; }
+  const reader = new FileReader();
+  reader.onerror = () => showMsg("Could not read the file.", "err");
+  reader.onload = () => handleText(String(reader.result || ""), file.name);
+  reader.readAsText(file);
+}
+
+// Drag & drop.
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add("drag");
+}));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove("drag");
+}));
+drop.addEventListener("drop", e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  handleFile(f);
+});
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
+
+// Tab switching.
+const tabImport = $("#tabImport"), tabCalc = $("#tabCalc");
+const panelImport = $("#panelImport"), panelCalc = $("#panelCalc");
+function selectTab(which) {
+  const imp = which === "import";
+  tabImport.setAttribute("aria-selected", String(imp));
+  tabCalc.setAttribute("aria-selected", String(!imp));
+  panelImport.hidden = !imp; panelCalc.hidden = imp;
+  resultEl.hidden = true; currentJson = null; clearMsg();
+}
+tabImport.addEventListener("click", () => selectTab("import"));
+tabCalc.addEventListener("click", () => selectTab("calc"));
+
+// Calculate handler.
+function num(id) { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : null; }
+$("#calcBtn").addEventListener("click", () => {
+  clearMsg();
+  const mv = num("#cMv"), bcIn = num("#cBc"), zero = num("#cZero"), sight = num("#cSight");
+  const maxR = num("#cMax"), step = num("#cStep"), temp = num("#cTemp"), press = num("#cPress");
+  const model = $("#cModel").value;
+  const errs = [];
+  if (!mv || mv < 200 || mv > 6000) errs.push("muzzle velocity (200–6000 fps)");
+  if (!bcIn || bcIn <= 0 || bcIn > 2) errs.push("ballistic coefficient (0–2)");
+  if (zero === null || zero < 10 || zero > 500) errs.push("zero range (10–500 yd)");
+  if (sight === null || sight < 0 || sight > 6) errs.push("sight height (0–6 in)");
+  if (!maxR || maxR < 100 || maxR > 3000) errs.push("max range (100–3000 yd)");
+  if (!step || step < 10 || step > 500) errs.push("step (10–500 yd)");
+  if (temp === null || temp < -40 || temp > 140) errs.push("temperature (−40–140 °F)");
+  if (!press || press < 15 || press > 35) errs.push("pressure (15–35 inHg)");
+  if (errs.length) { showMsg("Check these inputs: " + errs.join(", ") + ".", "err"); return; }
+
+  let opts = {
+    muzzleVelocity: mv, bc: bcIn, dragModel: model, zeroRangeYd: zero, sightHeightIn: sight,
+    maxRangeYd: maxR, stepYd: step, tempF: temp, pressureInHg: press,
+    windSpeed: num("#cWind"), windDirection: $("#cWindDir").value.trim() || null,
+    bulletWeightGr: num("#cBw")
+  };
+
+  // Optional truing.
+  let truedNote = "";
+  const tr = num("#cTrueRange"), tm = num("#cTrueMil");
+  if (tr !== null || tm !== null) {
+    if (tr === null || tm === null || tr <= 0 || tr > maxR || tm < 0) {
+      showMsg("Truing needs both a known range (≤ max range) and a non-negative observed mil, or leave both blank.", "err");
+      return;
+    }
+    const truedBc = trueBC(opts, tr, tm);
+    opts = Object.assign({}, opts, { bc: truedBc });
+    truedNote = ` Trued to ${tm} mil @ ${tr} yd → effective BC ${truedBc}.`;
+  }
+
+  try {
+    const rows = solve(opts);
+    if (!rows.length) { showMsg("No solution produced — check inputs.", "err"); return; }
+    const ir = solverToIR(opts, rows);
+    const json = emit(ir, null);
+    json.source.disclaimer = "Computed estimate from an independent open-source solver. Not the Applied Ballistics engine. Verify by live fire.";
+    if (truedNote) json.source.trued = truedNote.trim();
+    currentJson = json; currentName = "computed-dope";
+    render(ir, json, "computed-dope");
+    showMsg(`Computed ${rows.length} rows.${truedNote} Estimate — verify by live fire.`, "ok");
+  } catch (e) {
+    resultEl.hidden = true; currentJson = null;
+    showMsg("Solver error: " + e.message, "err");
+  }
+});
+
+// Download.
+$("#dlBtn").addEventListener("click", () => {
+  if (!currentJson) return;
+  const blob = new Blob([JSON.stringify(currentJson, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = currentName + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+// Copy to clipboard (with fallback for non-secure contexts).
+$("#copyBtn").addEventListener("click", async () => {
+  if (!currentJson) return;
+  const txt = JSON.stringify(currentJson, null, 2);
+  try {
+    await navigator.clipboard.writeText(txt);
+    flash($("#copyBtn"), "Copied");
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); flash($("#copyBtn"), "Copied"); }
+    catch { showMsg("Copy failed — select the JSON and copy manually.", "err"); }
+    ta.remove();
+  }
+});
+function flash(btn, text) {
+  const old = btn.textContent; btn.textContent = text;
+  setTimeout(() => { btn.textContent = old; }, 1200);
+}
+
+// Net status badge + version.
+function updateNet() {
+  $("#netbadge").textContent = navigator.onLine ? "online · offline ready" : "offline";
+}
+window.addEventListener("online", updateNet);
+window.addEventListener("offline", updateNet);
+updateNet();
+$("#ver").textContent = "schema v" + SCHEMA_VERSION;
+
+// Register service worker for offline use (no-op if unsupported / file://).
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>

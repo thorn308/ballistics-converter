@@ -1,0 +1,15 @@
+{
+  "name": "Ballistics DOPE Converter",
+  "short_name": "DOPE Convert",
+  "description": "Convert Applied Ballistics target-card CSV exports into watch-ready JSON. Fully offline.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
