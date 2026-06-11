@@ -59,7 +59,7 @@
   .meta .k { color: var(--label); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
   .meta .v { font-family: var(--mono); font-size: 17px; font-weight: 700; margin-top: 3px; }
   .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 4px;
-    border: 1px solid var(--line); border-radius: 9px; }
+    border: 1px solid var(--line); border-radius: 9px; min-width: 0; }
   table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 13.5px; }
   th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid #26281d; white-space: nowrap; }
   tbody tr:last-child td { border-bottom: none; }
@@ -123,6 +123,7 @@
     .wrap:has(#result:not([hidden])) > #msg { grid-column: 1; }
     .wrap:has(#result:not([hidden])) > #result {
       grid-column: 2; grid-row: 4 / span 2; align-self: start; position: sticky; top: 20px;
+      min-width: 0;
     }
     .wrap:has(#result:not([hidden])) > #result > .card:first-child { margin-top: 18px; }
   }
