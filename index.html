@@ -113,7 +113,31 @@
 
   <div id="panelCalc" role="tabpanel" hidden>
     <div class="card">
-      <div class="form-grid">
+      <fieldset style="margin-top:0;">
+        <legend>Bullet (optional — fills weight, BC, model)</legend>
+        <div class="form-grid">
+          <div class="field">
+            <label for="cBullet">Select a bullet</label>
+            <select id="cBullet"><option value="">— manual entry —</option></select>
+          </div>
+          <div class="field" style="align-self:end;">
+            <button id="addBulletBtn" type="button">Add custom bullet</button>
+          </div>
+        </div>
+        <div id="addBulletForm" hidden style="margin-top:10px;">
+          <div class="form-grid">
+            <div class="field"><label for="nbName">Name</label><input id="nbName" type="text" placeholder="e.g. .284 180gr Hybrid" /></div>
+            <div class="field"><label for="nbCal">Caliber/diam (in)</label><input id="nbCal" type="number" step="0.001" inputmode="decimal" placeholder="0.284" /></div>
+            <div class="field"><label for="nbWeight">Weight (gr)</label><input id="nbWeight" type="number" inputmode="decimal" placeholder="180" /></div>
+            <div class="field"><label for="nbBc">BC</label><input id="nbBc" type="number" step="0.001" inputmode="decimal" placeholder="0.330" /></div>
+            <div class="field"><label for="nbModel">Model</label><select id="nbModel"><option value="G7">G7</option><option value="G1">G1</option></select></div>
+            <div class="field" style="align-self:end;"><button id="saveBulletBtn" type="button" class="primary">Save</button></div>
+          </div>
+          <div class="hint">Saved to this device only. Use the manufacturer&rsquo;s published weight, BC, and which model (G7 for modern boat-tail, G1 for flat-base).</div>
+        </div>
+      </fieldset>
+
+      <div class="form-grid" style="margin-top:14px;">
         <div class="field"><label for="cMv">Muzzle velocity (fps)</label><input id="cMv" type="number" inputmode="decimal" value="2900" /></div>
         <div class="field"><label for="cBc">Ballistic coefficient</label><input id="cBc" type="number" inputmode="decimal" step="0.001" value="0.262" /></div>
         <div class="field"><label for="cBw">Bullet weight (gr)</label><input id="cBw" type="number" inputmode="decimal" value="103" /></div>
@@ -551,6 +575,46 @@ const G1_TABLE = [[0,0.2629],[0.05,0.2558],[0.1,0.2487],[0.15,0.2413],[0.2,0.234
 const G7_TABLE = [[0,0.1198],[0.05,0.1197],[0.1,0.1196],[0.15,0.1194],[0.2,0.1193],[0.25,0.1194],[0.3,0.1194],[0.35,0.1194],[0.4,0.1193],[0.45,0.1193],[0.5,0.1194],[0.55,0.1193],[0.6,0.1194],[0.65,0.1197],[0.7,0.1202],[0.725,0.1207],[0.75,0.1215],[0.775,0.1226],[0.8,0.1242],[0.825,0.1266],[0.85,0.1306],[0.875,0.1368],[0.9,0.1464],[0.925,0.166],[0.95,0.2054],[0.975,0.2993],[1,0.3803],[1.025,0.4015],[1.05,0.4043],[1.075,0.4034],[1.1,0.4014],[1.125,0.3987],[1.15,0.3955],[1.2,0.3884],[1.25,0.381],[1.3,0.3732],[1.35,0.3657],[1.4,0.358],[1.5,0.344],[1.55,0.3376],[1.6,0.3315],[1.65,0.326],[1.7,0.3209],[1.75,0.316],[1.8,0.3117],[1.9,0.3042],[2,0.298],[2.2,0.2873],[2.4,0.2779],[2.6,0.2688],[2.8,0.2603],[3,0.2523],[3.5,0.2339],[4,0.2179],[4.5,0.2034],[5,0.1912]];
 const DRAG_K = 2.0491e-4; // calibrated to AB velocity decay
 
+/* ----------------------------------------------------------------------------
+   Starter bullet list. Specs are manufacturer-PUBLISHED factual values
+   (caliber, weight, advertised BC + drag model). Advertised BCs are nominal and
+   can run slightly optimistic vs independently measured values — true to a real
+   drop for distance. Users can add their own (saved on-device). This is a
+   convenience starter set, not an exhaustive or authoritative database.
+   Each: { name, cal (in), weight (gr), bc, model }.
+---------------------------------------------------------------------------- */
+const BULLETS = [
+  { name: ".224 77gr Sierra MatchKing",     cal: 0.224, weight: 77,  bc: 0.372, model: "G1" },
+  { name: ".224 80gr Berger VLD",           cal: 0.224, weight: 80,  bc: 0.218, model: "G7" },
+  { name: ".243 105gr Berger Hybrid",       cal: 0.243, weight: 105, bc: 0.275, model: "G7" },
+  { name: ".243 108gr Hornady ELD-M",       cal: 0.243, weight: 108, bc: 0.272, model: "G7" },
+  { name: ".243 109gr Berger LR Hybrid",    cal: 0.243, weight: 109, bc: 0.298, model: "G7" },
+  { name: ".264 140gr Berger Hybrid",       cal: 0.264, weight: 140, bc: 0.311, model: "G7" },
+  { name: ".264 143gr Hornady ELD-X",       cal: 0.264, weight: 143, bc: 0.315, model: "G7" },
+  { name: ".264 147gr Hornady ELD-M",       cal: 0.264, weight: 147, bc: 0.351, model: "G7" },
+  { name: ".264 153gr Berger LR Hybrid",    cal: 0.264, weight: 153, bc: 0.348, model: "G7" },
+  { name: ".277 150gr Berger EOL Elite",    cal: 0.277, weight: 150, bc: 0.337, model: "G7" },
+  { name: ".284 180gr Berger Hybrid",       cal: 0.284, weight: 180, bc: 0.345, model: "G7" },
+  { name: ".284 195gr Berger EOL",          cal: 0.284, weight: 195, bc: 0.380, model: "G7" },
+  { name: ".308 168gr Sierra MatchKing",    cal: 0.308, weight: 168, bc: 0.223, model: "G7" },
+  { name: ".308 175gr Sierra MatchKing",    cal: 0.308, weight: 175, bc: 0.243, model: "G7" },
+  { name: ".308 178gr Hornady ELD-M",       cal: 0.308, weight: 178, bc: 0.275, model: "G7" },
+  { name: ".308 185gr Berger Juggernaut",   cal: 0.308, weight: 185, bc: 0.283, model: "G7" },
+  { name: ".308 215gr Berger Hybrid",       cal: 0.308, weight: 215, bc: 0.354, model: "G7" },
+  { name: ".308 230gr Berger Hybrid OTM",   cal: 0.308, weight: 230, bc: 0.382, model: "G7" },
+  { name: ".338 285gr Hornady ELD-M",       cal: 0.338, weight: 285, bc: 0.396, model: "G7" },
+  { name: ".338 300gr Berger Hybrid OTM",   cal: 0.338, weight: 300, bc: 0.434, model: "G7" }
+];
+
+const CUSTOM_KEY = "dopeConverter.customBullets.v1";
+function loadCustomBullets() {
+  try { const v = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]"); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function saveCustomBullets(list) {
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); return true; } catch { return false; }
+}
+
 function cdInterp(table, mach) {
   if (mach <= table[0][0]) return table[0][1];
   const last = table[table.length - 1];
@@ -849,6 +913,65 @@ function selectTab(which) {
 }
 tabImport.addEventListener("click", () => selectTab("import"));
 tabCalc.addEventListener("click", () => selectTab("calc"));
+
+// Bullet picker.
+const bulletSel = $("#cBullet");
+function allBullets() { return BULLETS.concat(loadCustomBullets()); }
+function refreshBulletOptions(selectName) {
+  const list = allBullets();
+  bulletSel.innerHTML = '<option value="">— manual entry —</option>';
+  list.forEach((b, i) => {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = b.name + (b.custom ? "  (saved)" : "");
+    bulletSel.appendChild(o);
+  });
+  if (selectName) {
+    const idx = list.findIndex(b => b.name === selectName);
+    if (idx >= 0) bulletSel.value = String(idx);
+  }
+}
+bulletSel.addEventListener("change", () => {
+  const idx = parseInt(bulletSel.value, 10);
+  if (Number.isNaN(idx)) return;
+  const b = allBullets()[idx];
+  if (!b) return;
+  $("#cBw").value = b.weight;
+  $("#cBc").value = b.bc;
+  $("#cModel").value = b.model;
+  showMsg(`Loaded ${b.name}: ${b.weight} gr, BC ${b.bc} (${b.model}). Set your muzzle velocity, then calculate.`, "ok");
+});
+
+// Add custom bullet.
+$("#addBulletBtn").addEventListener("click", () => {
+  const f = $("#addBulletForm");
+  f.hidden = !f.hidden;
+});
+$("#saveBulletBtn").addEventListener("click", () => {
+  const name = $("#nbName").value.trim();
+  const cal = parseFloat($("#nbCal").value);
+  const weight = parseFloat($("#nbWeight").value);
+  const bc = parseFloat($("#nbBc").value);
+  const model = $("#nbModel").value;
+  const errs = [];
+  if (!name) errs.push("name");
+  if (!(weight > 0 && weight < 1000)) errs.push("weight (0–1000 gr)");
+  if (!(bc > 0 && bc < 2)) errs.push("BC (0–2)");
+  if ($("#nbCal").value && !(cal > 0 && cal < 1)) errs.push("caliber (0–1 in)");
+  if (errs.length) { showMsg("Custom bullet needs: " + errs.join(", ") + ".", "err"); return; }
+  const list = loadCustomBullets();
+  // Replace if same name exists, else add.
+  const existing = list.findIndex(b => b.name.toLowerCase() === name.toLowerCase());
+  const rec = { name, cal: cal || null, weight, bc, model, custom: true };
+  if (existing >= 0) list[existing] = rec; else list.push(rec);
+  if (!saveCustomBullets(list)) { showMsg("Could not save (device storage blocked).", "err"); return; }
+  ["nbName","nbCal","nbWeight","nbBc"].forEach(id => { $("#"+id).value = ""; });
+  $("#addBulletForm").hidden = true;
+  refreshBulletOptions(name);
+  bulletSel.dispatchEvent(new Event("change"));
+  showMsg(`Saved "${name}" to this device.`, "ok");
+});
+refreshBulletOptions();
 
 // Calculate handler.
 function num(id) { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : null; }
