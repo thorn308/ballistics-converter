@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#0f1115" />
+<meta name="theme-color" content="#131309" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -13,79 +13,123 @@
 <title>Ballistics DOPE Converter</title>
 <style>
   :root {
-    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a;
-    --text: #e7eaf0; --muted: #9aa3b2; --accent: #d8772f; --accent2: #1d9e75;
-    --danger: #e24b4a; --ok: #1d9e75; --radius: 12px;
+    /* Armory Stencil — warm coyote / olive on near-black olive */
+    --bg: #131309; --panel: #1c1d15; --panel2: #24261c; --line: #34372a; --line2: #3d4030;
+    --text: #e9e7da; --muted: #a7a98c; --label: #9aa67e; --tan: #c2a878;
+    --accent: #d9742f; --accent-ink: #1a0e04;
+    --danger: #e0613f; --ok: #b6c07a; --radius: 12px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.5; -webkit-text-size-adjust: 100%; }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 20px 16px 64px; }
-  header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-  h1 { font-size: 20px; font-weight: 600; margin: 0; }
-  .sub { color: var(--muted); font-size: 13px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
-    padding: 16px; margin-top: 16px; }
-  .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 22px 16px;
+    font-family: var(--sans); line-height: 1.5; -webkit-text-size-adjust: 100%; }
+  /* topographic contour map behind everything */
+  #topo { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .wrap { position: relative; z-index: 1; max-width: 760px; margin: 0 auto;
+    padding: calc(22px + env(safe-area-inset-top)) 16px calc(72px + env(safe-area-inset-bottom)); }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 7px; }
+  h1 { font-size: 21px; font-weight: 800; margin: 0; letter-spacing: 0.06em; text-transform: uppercase; }
+  h1::before { content: "◎"; color: var(--accent); margin-right: 9px; font-size: 18px; }
+  .sub { color: var(--muted); font-size: 13.5px; max-width: 56ch; }
+  .card { position: relative; background: rgba(28,29,21,0.92); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 17px; margin-top: 16px; }
+  .drop { border: 2px dashed var(--line2); border-radius: var(--radius); padding: 34px 16px;
     text-align: center; transition: border-color .15s, background .15s; cursor: pointer;
-    display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .drop.drag { border-color: var(--accent); background: #1b1d24; }
-  .drop .ico { width: 26px; height: 26px; color: var(--muted); margin-bottom: 2px; }
+    display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 132px; justify-content: center; }
+  .drop:hover, .drop:focus-visible { border-color: var(--tan); background: #20221a; outline: none; }
+  .drop.drag { border-color: var(--accent); background: #2a2114; }
+  .drop .ico { width: 30px; height: 30px; color: var(--tan); margin-bottom: 4px; }
   .drop .lead { color: var(--text); font-size: 15px; }
-  .drop .lead strong { font-weight: 600; }
+  .drop .lead strong { font-weight: 700; }
   .drop small { color: var(--muted); font-size: 12px; }
   input[type=file] { display: none; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
-    padding: 9px 14px; border-radius: 9px; cursor: pointer; transition: background .12s, border-color .12s; }
-  button:hover:not(:disabled) { border-color: var(--accent); }
+  button { font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--text);
+    background: var(--panel2); border: 1px solid var(--line2); padding: 12px 16px; border-radius: 9px;
+    cursor: pointer; min-height: 44px; transition: background .12s, border-color .12s, filter .12s;
+    text-transform: uppercase; letter-spacing: 0.05em; }
+  button:hover:not(:disabled) { border-color: var(--tan); }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #1a0e04; font-weight: 600; }
-  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
-  .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-  .meta { background: var(--panel2); border-radius: 9px; padding: 10px 12px; }
-  .meta .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
-  .meta .v { font-size: 16px; font-weight: 600; margin-top: 2px; }
-  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 4px; }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
-  th:first-child, td:first-child { text-align: left; }
-  tbody tr:hover { background: #1b1d24; }
-  pre { background: #0b0d11; border: 1px solid var(--line); border-radius: 9px; padding: 12px;
-    overflow: auto; max-height: 320px; font-size: 12px; color: #cdd4df;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 0; }
-  .msg { border-radius: 9px; padding: 11px 13px; margin-top: 12px; font-size: 14px; display: none; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+    font-weight: 800; letter-spacing: 0.1em; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.07); }
+  .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 9px; }
+  .meta { background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 11px 12px; }
+  .meta .k { color: var(--label); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
+  .meta .v { font-family: var(--mono); font-size: 17px; font-weight: 700; margin-top: 3px; }
+  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 4px;
+    border: 1px solid var(--line); border-radius: 9px; }
+  table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 13.5px; }
+  th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid #26281d; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  th { color: var(--label); font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+    position: sticky; top: 0; background: #20221a; }
+  th:first-child, td:first-child { text-align: left; color: var(--text); }
+  tbody tr:nth-child(even) { background: rgba(36,38,28,0.4); }
+  tbody tr:hover { background: #2a2c20; }
+  pre { background: #0d0e07; border: 1px solid var(--line); border-radius: 9px; padding: 13px;
+    overflow: auto; max-height: 340px; font-size: 12px; color: #b6a06c; line-height: 1.65;
+    font-family: var(--mono); margin: 0; }
+  .msg { border-radius: 9px; padding: 12px 14px; margin-top: 13px; font-size: 14px; display: none; }
   .msg.show { display: block; }
-  .msg.err { background: #2a1414; border: 1px solid var(--danger); color: #ffb4b3; }
-  .msg.ok { background: #11211b; border: 1px solid var(--ok); color: #9ff0d2; }
-  h2 { font-size: 14px; font-weight: 600; margin: 0 0 10px; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .04em; }
-  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .msg.err { background: #2c1710; border: 1px solid var(--danger); color: #f3b39c; }
+  .msg.ok { background: #21240f; border: 1px solid #5e6a32; color: #d6e09a; }
+  h2 { font-size: 12px; font-weight: 800; margin: 0 0 12px; color: var(--tan);
+    text-transform: uppercase; letter-spacing: .14em; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 9px; line-height: 1.55; }
   .badge { display: inline-block; background: var(--panel2); border: 1px solid var(--line);
-    border-radius: 999px; padding: 2px 9px; font-size: 11px; color: var(--muted); }
-  footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: center; }
-  a { color: var(--accent2); }
-  .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 4px; margin-top: 16px; }
-  .tab { flex: 1; text-align: center; padding: 9px 12px; border-radius: 7px; cursor: pointer;
-    color: var(--muted); border: none; background: transparent; font: inherit; transition: background .12s, color .12s; }
-  .tab[aria-selected="true"] { background: var(--panel2); color: var(--text); font-weight: 600; }
-  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .field label { font-size: 12px; color: var(--muted); }
-  .field input, .field select { font: inherit; color: var(--text); background: var(--panel2);
-    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
-  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
-  .disclaimer { background: #2a2110; border: 1px solid var(--accent); border-radius: 9px;
-    padding: 11px 13px; font-size: 13px; color: #f1c98a; margin-top: 14px; }
-  .disclaimer strong { color: #f6d9a8; }
-  fieldset { border: 1px solid var(--line); border-radius: 9px; padding: 12px; margin: 14px 0 0; }
-  legend { font-size: 12px; color: var(--muted); padding: 0 6px; }
+    border-radius: 999px; padding: 3px 10px; font-family: var(--mono); font-size: 10.5px; color: var(--label);
+    text-transform: uppercase; letter-spacing: 0.05em; }
+  footer { color: var(--muted); font-family: var(--mono); font-size: 11.5px; margin-top: 30px; text-align: center;
+    text-transform: uppercase; letter-spacing: 0.08em; }
+  a { color: var(--tan); }
+  .tabs { display: flex; gap: 5px; background: rgba(28,29,21,0.85); border: 1px solid var(--line);
+    border-radius: 11px; padding: 5px; margin-top: 18px; }
+  .tab { flex: 1; text-align: center; padding: 12px; border-radius: 7px; cursor: pointer; min-height: 46px;
+    color: var(--label); border: none; background: transparent; font-family: var(--sans); font-size: 13px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; transition: background .12s, color .12s; }
+  .tab[aria-selected="true"] { background: var(--tan); color: var(--accent-ink); font-weight: 800; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 13px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 10.5px; color: var(--label); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .field input, .field select { font-family: var(--mono); font-size: 15px; color: var(--text); background: var(--panel2);
+    border: 1px solid var(--line2); border-radius: 8px; padding: 13px 12px; width: 100%; min-height: 46px; }
+  .field select { font-family: var(--sans); }
+  .field input::placeholder { color: #6f7257; }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(217,116,47,0.2); }
+  .disclaimer { background: rgba(42,33,16,0.72); border: 1px dashed #7a5a28; border-radius: 9px;
+    padding: 12px 14px; font-size: 13px; color: #c9ac74; margin-top: 15px; line-height: 1.55; }
+  .disclaimer strong { color: #e0bf86; }
+  fieldset { border: 1px solid var(--line); border-radius: 9px; padding: 13px; margin: 15px 0 0; }
+  legend { font-size: 10.5px; color: var(--label); font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; padding: 0 7px; }
+
+  /* ---- Responsive: phone single column → desktop two columns (inputs left, output right) ---- */
+  @media (min-width: 1040px) {
+    .wrap:has(#result:not([hidden])) {
+      max-width: 1240px;
+      display: grid;
+      grid-template-columns: minmax(420px, 500px) 1fr;
+      column-gap: 30px;
+      align-items: start;
+    }
+    .wrap:has(#result:not([hidden])) > header,
+    .wrap:has(#result:not([hidden])) > .sub,
+    .wrap:has(#result:not([hidden])) > .tabs { grid-column: 1 / -1; }
+    .wrap:has(#result:not([hidden])) > footer { grid-column: 1 / -1; grid-row: 6; }
+    .wrap:has(#result:not([hidden])) > #panelImport,
+    .wrap:has(#result:not([hidden])) > #panelCalc,
+    .wrap:has(#result:not([hidden])) > #msg { grid-column: 1; }
+    .wrap:has(#result:not([hidden])) > #result {
+      grid-column: 2; grid-row: 4 / span 2; align-self: start; position: sticky; top: 20px;
+    }
+    .wrap:has(#result:not([hidden])) > #result > .card:first-child { margin-top: 18px; }
+  }
 </style>
 </head>
 <body>
+<canvas id="topo" aria-hidden="true"></canvas>
 <div class="wrap">
   <header>
     <h1>Ballistics DOPE Converter</h1>
@@ -1136,6 +1180,133 @@ $("#ver").textContent = "schema v" + SCHEMA_VERSION;
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+</script>
+
+<script>
+/* ----------------------------------------------------------------------------
+   Topographic contour background. Procedurally generated (marching-squares over
+   a Gaussian height field) — no images, fully offline. Subtle coyote/olive.
+---------------------------------------------------------------------------- */
+(function () {
+  "use strict";
+  var canvas = document.getElementById("topo");
+  if (!canvas) return;
+  var ctx = canvas.getContext("2d");
+  var RGB = "194,168,120"; // coyote tan
+
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function draw() {
+    var W = window.innerWidth, H = window.innerHeight;
+    if (!W || !H) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    var rand = rng(20260611);
+    // faint survey grid
+    var g = 72;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(" + RGB + ",0.03)";
+    ctx.beginPath();
+    for (var x = (W % g) / 2; x <= W; x += g) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); }
+    for (var y = (H % g) / 2; y <= H; y += g) { ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); }
+    ctx.stroke();
+
+    // height field = gaussian peaks + low-freq waves
+    var minSide = Math.min(W, H);
+    var nPeaks = Math.max(7, Math.round((W * H) / 60000));
+    var peaks = [];
+    for (var i = 0; i < nPeaks; i++) {
+      peaks.push({
+        x: (rand() * 1.4 - 0.2) * W,
+        y: (rand() * 1.4 - 0.2) * H,
+        s: (0.12 + rand() * 0.18) * minSide,
+        a: rand() * 2.2 - 0.85
+      });
+    }
+    var px = rand() * 100, py = rand() * 100;
+    function field(fx, fy) {
+      var v = 0;
+      for (var k = 0; k < peaks.length; k++) {
+        var p = peaks[k], dx = fx - p.x, dy = fy - p.y;
+        v += p.a * Math.exp(-(dx * dx + dy * dy) / (2 * p.s * p.s));
+      }
+      return v + 0.35 * Math.sin(fx * 0.010 + px) + 0.32 * Math.cos(fy * 0.011 + py);
+    }
+
+    var cell = 10;
+    var gx = Math.ceil(W / cell) + 1, gy = Math.ceil(H / cell) + 1;
+    var vals = new Float32Array(gx * gy);
+    var mn = Infinity, mx = -Infinity;
+    for (var j = 0; j < gy; j++) {
+      for (var ii = 0; ii < gx; ii++) {
+        var vv = field(ii * cell, j * cell);
+        vals[j * gx + ii] = vv;
+        if (vv < mn) mn = vv; if (vv > mx) mx = vv;
+      }
+    }
+    function at(i2, j2) { return vals[j2 * gx + i2]; }
+
+    var nLev = 26;
+    for (var lv = 1; lv < nLev; lv++) {
+      var L = mn + (mx - mn) * (lv / nLev);
+      var idx5 = lv % 5 === 0;
+      ctx.beginPath();
+      ctx.lineWidth = idx5 ? 1.4 : 0.8;
+      ctx.strokeStyle = "rgba(" + RGB + (idx5 ? ",0.10)" : ",0.045)");
+      for (var jj = 0; jj < gy - 1; jj++) {
+        for (var i3 = 0; i3 < gx - 1; i3++) {
+          var tl = at(i3, jj), tr = at(i3 + 1, jj), br = at(i3 + 1, jj + 1), bl = at(i3, jj + 1);
+          var c = 0;
+          if (tl > L) c |= 1; if (tr > L) c |= 2; if (br > L) c |= 4; if (bl > L) c |= 8;
+          if (c === 0 || c === 15) continue;
+          var bx = i3 * cell, by = jj * cell;
+          var pa = [bx + cell * ((L - tl) / (tr - tl)), by];
+          var pb = [bx + cell, by + cell * ((L - tr) / (br - tr))];
+          var pc = [bx + cell * ((L - bl) / (br - bl)), by + cell];
+          var pd = [bx, by + cell * ((L - tl) / (bl - tl))];
+          function seg(p, q) { ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); }
+          switch (c) {
+            case 1: case 14: seg(pa, pd); break;
+            case 2: case 13: seg(pa, pb); break;
+            case 3: case 12: seg(pd, pb); break;
+            case 4: case 11: seg(pb, pc); break;
+            case 6: case 9:  seg(pa, pc); break;
+            case 7: case 8:  seg(pc, pd); break;
+            case 5: seg(pa, pd); seg(pb, pc); break;
+            case 10: seg(pa, pb); seg(pc, pd); break;
+          }
+        }
+      }
+      ctx.stroke();
+    }
+
+    // scattered survey dots
+    var nDots = Math.round((W * H) / 24000);
+    ctx.fillStyle = "rgba(" + RGB + ",0.13)";
+    for (var d = 0; d < nDots; d++) {
+      ctx.beginPath();
+      ctx.arc(rand() * W, rand() * H, 1.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  var t;
+  function schedule() { clearTimeout(t); t = setTimeout(draw, 160); }
+  draw();
+  window.addEventListener("resize", schedule);
+})();
 </script>
 </body>
 </html>
