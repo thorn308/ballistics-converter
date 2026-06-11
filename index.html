@@ -584,26 +584,78 @@ const DRAG_K = 2.0491e-4; // calibrated to AB velocity decay
    Each: { name, cal (in), weight (gr), bc, model }.
 ---------------------------------------------------------------------------- */
 const BULLETS = [
-  { name: ".224 77gr Sierra MatchKing",     cal: 0.224, weight: 77,  bc: 0.372, model: "G1" },
-  { name: ".224 80gr Berger VLD",           cal: 0.224, weight: 80,  bc: 0.218, model: "G7" },
-  { name: ".243 105gr Berger Hybrid",       cal: 0.243, weight: 105, bc: 0.275, model: "G7" },
-  { name: ".243 108gr Hornady ELD-M",       cal: 0.243, weight: 108, bc: 0.272, model: "G7" },
-  { name: ".243 109gr Berger LR Hybrid",    cal: 0.243, weight: 109, bc: 0.298, model: "G7" },
-  { name: ".264 140gr Berger Hybrid",       cal: 0.264, weight: 140, bc: 0.311, model: "G7" },
-  { name: ".264 143gr Hornady ELD-X",       cal: 0.264, weight: 143, bc: 0.315, model: "G7" },
-  { name: ".264 147gr Hornady ELD-M",       cal: 0.264, weight: 147, bc: 0.351, model: "G7" },
-  { name: ".264 153gr Berger LR Hybrid",    cal: 0.264, weight: 153, bc: 0.348, model: "G7" },
-  { name: ".277 150gr Berger EOL Elite",    cal: 0.277, weight: 150, bc: 0.337, model: "G7" },
-  { name: ".284 180gr Berger Hybrid",       cal: 0.284, weight: 180, bc: 0.345, model: "G7" },
-  { name: ".284 195gr Berger EOL",          cal: 0.284, weight: 195, bc: 0.380, model: "G7" },
-  { name: ".308 168gr Sierra MatchKing",    cal: 0.308, weight: 168, bc: 0.223, model: "G7" },
-  { name: ".308 175gr Sierra MatchKing",    cal: 0.308, weight: 175, bc: 0.243, model: "G7" },
-  { name: ".308 178gr Hornady ELD-M",       cal: 0.308, weight: 178, bc: 0.275, model: "G7" },
-  { name: ".308 185gr Berger Juggernaut",   cal: 0.308, weight: 185, bc: 0.283, model: "G7" },
-  { name: ".308 215gr Berger Hybrid",       cal: 0.308, weight: 215, bc: 0.354, model: "G7" },
-  { name: ".308 230gr Berger Hybrid OTM",   cal: 0.308, weight: 230, bc: 0.382, model: "G7" },
-  { name: ".338 285gr Hornady ELD-M",       cal: 0.338, weight: 285, bc: 0.396, model: "G7" },
-  { name: ".338 300gr Berger Hybrid OTM",   cal: 0.338, weight: 300, bc: 0.434, model: "G7" }
+  { name: ".224 69gr Sierra MatchKing",        cal: 0.224, group: ".224 / 5.56mm", weight: 69,  bc: 0.301, model: "G1" },
+  { name: ".224 77gr Sierra MatchKing",        cal: 0.224, group: ".224 / 5.56mm", weight: 77,  bc: 0.362, model: "G1" },
+  { name: ".224 77gr Sierra TMK",              cal: 0.224, group: ".224 / 5.56mm", weight: 77,  bc: 0.420, model: "G1" },
+  { name: ".224 80gr Berger VLD Target",       cal: 0.224, group: ".224 / 5.56mm", weight: 80,  bc: 0.218, model: "G7" },
+  { name: ".224 88gr Hornady ELD-M",           cal: 0.224, group: ".224 / 5.56mm", weight: 88,  bc: 0.274, model: "G7" },
+  { name: ".224 90gr Sierra MatchKing",        cal: 0.224, group: ".224 / 5.56mm", weight: 90,  bc: 0.290, model: "G7" },
+
+  { name: ".243 87gr Hornady ELD-X",           cal: 0.243, group: "6mm / .243", weight: 87,  bc: 0.244, model: "G7" },
+  { name: ".243 105gr Berger Hybrid Target",   cal: 0.243, group: "6mm / .243", weight: 105, bc: 0.275, model: "G7" },
+  { name: ".243 105gr Hornady BTHP Match",     cal: 0.243, group: "6mm / .243", weight: 105, bc: 0.252, model: "G7" },
+  { name: ".243 108gr Hornady ELD-M",          cal: 0.243, group: "6mm / .243", weight: 108, bc: 0.275, model: "G7" },
+  { name: ".243 109gr Berger LR Hybrid Tgt",   cal: 0.243, group: "6mm / .243", weight: 109, bc: 0.298, model: "G7" },
+  { name: ".243 110gr Sierra MatchKing",       cal: 0.243, group: "6mm / .243", weight: 110, bc: 0.286, model: "G7" },
+  { name: ".243 115gr Nosler RDF",             cal: 0.243, group: "6mm / .243", weight: 115, bc: 0.296, model: "G7" },
+
+  { name: ".257 117gr Sierra GameKing",        cal: 0.257, group: ".25 / .257", weight: 117, bc: 0.183, model: "G7" },
+  { name: ".257 131gr Hornady ELD-M",          cal: 0.257, group: ".25 / .257", weight: 131, bc: 0.337, model: "G7" },
+  { name: ".257 135gr Berger Elite Hunter",    cal: 0.257, group: ".25 / .257", weight: 135, bc: 0.323, model: "G7" },
+
+  { name: ".264 120gr Nosler Ballistic Tip",   cal: 0.264, group: "6.5mm / .264", weight: 120, bc: 0.230, model: "G7" },
+  { name: ".264 130gr Berger VLD Hunting",     cal: 0.264, group: "6.5mm / .264", weight: 130, bc: 0.274, model: "G7" },
+  { name: ".264 130gr Sierra TMK",             cal: 0.264, group: "6.5mm / .264", weight: 130, bc: 0.279, model: "G7" },
+  { name: ".264 140gr Berger Hybrid Target",   cal: 0.264, group: "6.5mm / .264", weight: 140, bc: 0.311, model: "G7" },
+  { name: ".264 140gr Nosler RDF",             cal: 0.264, group: "6.5mm / .264", weight: 140, bc: 0.310, model: "G7" },
+  { name: ".264 142gr Nosler AccuBond LR",     cal: 0.264, group: "6.5mm / .264", weight: 142, bc: 0.315, model: "G7" },
+  { name: ".264 142gr Sierra MatchKing",       cal: 0.264, group: "6.5mm / .264", weight: 142, bc: 0.302, model: "G7" },
+  { name: ".264 143gr Hornady ELD-X",          cal: 0.264, group: "6.5mm / .264", weight: 143, bc: 0.315, model: "G7" },
+  { name: ".264 147gr Hornady ELD-M",          cal: 0.264, group: "6.5mm / .264", weight: 147, bc: 0.351, model: "G7" },
+  { name: ".264 150gr Berger LR Hybrid Tgt",   cal: 0.264, group: "6.5mm / .264", weight: 150, bc: 0.344, model: "G7" },
+  { name: ".264 153gr Sierra TMK",             cal: 0.264, group: "6.5mm / .264", weight: 153, bc: 0.359, model: "G7" },
+  { name: ".264 156gr Berger EOL Elite Hunt",  cal: 0.264, group: "6.5mm / .264", weight: 156, bc: 0.359, model: "G7" },
+
+  { name: ".277 145gr Hornady ELD-X",          cal: 0.277, group: ".270 / .277", weight: 145, bc: 0.310, model: "G7" },
+  { name: ".277 150gr Berger EOL Elite Hunt",  cal: 0.277, group: ".270 / .277", weight: 150, bc: 0.337, model: "G7" },
+  { name: ".277 165gr Sierra Tipped GameKing", cal: 0.277, group: ".270 / .277", weight: 165, bc: 0.291, model: "G7" },
+  { name: ".277 170gr Nosler AccuBond LR",     cal: 0.277, group: ".270 / .277", weight: 170, bc: 0.337, model: "G7" },
+
+  { name: ".284 150gr Nosler Ballistic Tip",   cal: 0.284, group: "7mm / .284", weight: 150, bc: 0.246, model: "G7" },
+  { name: ".284 162gr Hornady ELD-X",          cal: 0.284, group: "7mm / .284", weight: 162, bc: 0.315, model: "G7" },
+  { name: ".284 168gr Berger Classic Hunter",  cal: 0.284, group: "7mm / .284", weight: 168, bc: 0.317, model: "G7" },
+  { name: ".284 175gr Hornady ELD-M",          cal: 0.284, group: "7mm / .284", weight: 175, bc: 0.345, model: "G7" },
+  { name: ".284 180gr Berger Hybrid Target",   cal: 0.284, group: "7mm / .284", weight: 180, bc: 0.345, model: "G7" },
+  { name: ".284 180gr Sierra MatchKing",       cal: 0.284, group: "7mm / .284", weight: 180, bc: 0.337, model: "G7" },
+  { name: ".284 183gr Sierra MatchKing",       cal: 0.284, group: "7mm / .284", weight: 183, bc: 0.355, model: "G7" },
+  { name: ".284 184gr Hornady ELD-M",          cal: 0.284, group: "7mm / .284", weight: 184, bc: 0.349, model: "G7" },
+  { name: ".284 190gr Nosler RDF",             cal: 0.284, group: "7mm / .284", weight: 190, bc: 0.349, model: "G7" },
+  { name: ".284 195gr Berger EOL Elite Hunt",  cal: 0.284, group: "7mm / .284", weight: 195, bc: 0.380, model: "G7" },
+
+  { name: ".308 150gr Nosler Ballistic Tip",   cal: 0.308, group: ".30 / .308", weight: 150, bc: 0.211, model: "G7" },
+  { name: ".308 155gr Berger Hybrid Target",   cal: 0.308, group: ".30 / .308", weight: 155, bc: 0.237, model: "G7" },
+  { name: ".308 168gr Sierra MatchKing",       cal: 0.308, group: ".30 / .308", weight: 168, bc: 0.223, model: "G7" },
+  { name: ".308 168gr Hornady ELD-M",          cal: 0.308, group: ".30 / .308", weight: 168, bc: 0.270, model: "G7" },
+  { name: ".308 175gr Sierra MatchKing",       cal: 0.308, group: ".30 / .308", weight: 175, bc: 0.243, model: "G7" },
+  { name: ".308 175gr Sierra TMK",             cal: 0.308, group: ".30 / .308", weight: 175, bc: 0.253, model: "G7" },
+  { name: ".308 178gr Hornady ELD-M",          cal: 0.308, group: ".30 / .308", weight: 178, bc: 0.281, model: "G7" },
+  { name: ".308 178gr Hornady ELD-X",          cal: 0.308, group: ".30 / .308", weight: 178, bc: 0.279, model: "G7" },
+  { name: ".308 185gr Berger Juggernaut Tgt",  cal: 0.308, group: ".30 / .308", weight: 185, bc: 0.283, model: "G7" },
+  { name: ".308 190gr Sierra MatchKing",       cal: 0.308, group: ".30 / .308", weight: 190, bc: 0.266, model: "G7" },
+  { name: ".308 195gr Berger Hybrid Target",   cal: 0.308, group: ".30 / .308", weight: 195, bc: 0.323, model: "G7" },
+  { name: ".308 200gr Hornady ELD-X",          cal: 0.308, group: ".30 / .308", weight: 200, bc: 0.310, model: "G7" },
+  { name: ".308 208gr Hornady ELD-M",          cal: 0.308, group: ".30 / .308", weight: 208, bc: 0.317, model: "G7" },
+  { name: ".308 210gr Berger VLD Target",      cal: 0.308, group: ".30 / .308", weight: 210, bc: 0.317, model: "G7" },
+  { name: ".308 215gr Berger Hybrid Target",   cal: 0.308, group: ".30 / .308", weight: 215, bc: 0.354, model: "G7" },
+  { name: ".308 220gr Sierra MatchKing",       cal: 0.308, group: ".30 / .308", weight: 220, bc: 0.310, model: "G7" },
+  { name: ".308 225gr Hornady ELD-M",          cal: 0.308, group: ".30 / .308", weight: 225, bc: 0.391, model: "G7" },
+  { name: ".308 230gr Berger Hybrid OTM Tgt",  cal: 0.308, group: ".30 / .308", weight: 230, bc: 0.382, model: "G7" },
+  { name: ".308 230gr Hornady A-Tip",          cal: 0.308, group: ".30 / .308", weight: 230, bc: 0.414, model: "G7" },
+
+  { name: ".338 250gr Sierra MatchKing",       cal: 0.338, group: ".338", weight: 250, bc: 0.330, model: "G7" },
+  { name: ".338 285gr Hornady ELD-M",          cal: 0.338, group: ".338", weight: 285, bc: 0.396, model: "G7" },
+  { name: ".338 300gr Berger Hybrid OTM Tgt",  cal: 0.338, group: ".338", weight: 300, bc: 0.434, model: "G7" },
+  { name: ".338 300gr Sierra MatchKing",       cal: 0.338, group: ".338", weight: 300, bc: 0.422, model: "G7" }
 ];
 
 const CUSTOM_KEY = "dopeConverter.customBullets.v1";
@@ -920,12 +972,24 @@ function allBullets() { return BULLETS.concat(loadCustomBullets()); }
 function refreshBulletOptions(selectName) {
   const list = allBullets();
   bulletSel.innerHTML = '<option value="">— manual entry —</option>';
+  // Group options by caliber (and a 'Saved' group for custom bullets).
+  const groups = new Map();
   list.forEach((b, i) => {
-    const o = document.createElement("option");
-    o.value = String(i);
-    o.textContent = b.name + (b.custom ? "  (saved)" : "");
-    bulletSel.appendChild(o);
+    const key = b.custom ? "Saved (this device)" : (b.group || "Other");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ b, i });
   });
+  for (const [label, items] of groups) {
+    const og = document.createElement("optgroup");
+    og.label = label;
+    for (const { b, i } of items) {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = b.name;
+      og.appendChild(o);
+    }
+    bulletSel.appendChild(og);
+  }
   if (selectName) {
     const idx = list.findIndex(b => b.name === selectName);
     if (idx >= 0) bulletSel.value = String(idx);
