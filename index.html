@@ -247,6 +247,7 @@
             <option value="bridger">Bridger (RECKON watch)</option>
             <option value="generic">Generic (full data)</option>
           </select>
+          <select id="slotSel" aria-label="RECKON chart slot"></select>
           <button id="copyBtn">Copy</button>
           <button id="dlBtn" class="primary">Download .json</button>
         </div>
@@ -724,6 +725,21 @@ function loadCustomBullets() {
 }
 function saveCustomBullets(list) {
   try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); return true; } catch { return false; }
+}
+
+// RECKON has 5 chart slots, fixed filenames bdata0.json..bdata4.json.
+// Remember a human label per slot so the user sees what's there before overwrite.
+const SLOT_KEY = "dopeConverter.slotLabels.v1";
+const SLOT_COUNT = 5;
+function loadSlotLabels() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SLOT_KEY) || "[]");
+    const arr = Array.isArray(v) ? v : [];
+    return Array.from({ length: SLOT_COUNT }, (_, i) => (typeof arr[i] === "string" ? arr[i] : ""));
+  } catch { return Array.from({ length: SLOT_COUNT }, () => ""); }
+}
+function saveSlotLabels(labels) {
+  try { localStorage.setItem(SLOT_KEY, JSON.stringify(labels.slice(0, SLOT_COUNT))); return true; } catch { return false; }
 }
 
 function cdInterp(table, mach) {
@@ -1264,19 +1280,53 @@ $("#calcBtn").addEventListener("click", () => {
   }
 });
 
+// RECKON slot picker — populate from remembered labels, show only for Bridger.
+const slotSel = $("#slotSel");
+function refreshSlotOptions() {
+  const labels = loadSlotLabels();
+  const cur = slotSel.value;
+  slotSel.innerHTML = "";
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = labels[i] ? `Slot ${i}: ${labels[i]}` : `Slot ${i} (empty) → bdata${i}.json`;
+    slotSel.appendChild(o);
+  }
+  if (cur !== "" && Number(cur) < SLOT_COUNT) slotSel.value = cur;
+}
+function updateSlotVisibility() {
+  slotSel.style.display = ($("#fmtSel").value === "bridger") ? "" : "none";
+}
+refreshSlotOptions();
+updateSlotVisibility();
+
 // Output format toggle.
-$("#fmtSel").addEventListener("change", rebuildOutput);
+$("#fmtSel").addEventListener("change", () => { updateSlotVisibility(); rebuildOutput(); });
 
 // Download.
 $("#dlBtn").addEventListener("click", () => {
   if (!currentJson) return;
+  const isBridger = $("#fmtSel").value === "bridger";
+  let filename;
+  if (isBridger) {
+    const slot = parseInt(slotSel.value, 10) || 0;
+    filename = `bdata${slot}.json`;
+    // Remember what's now in this slot (chart_id is descriptive, e.g. 6mm_243_100_1000yd).
+    const labels = loadSlotLabels();
+    labels[slot] = currentJson.chart_id || currentName;
+    saveSlotLabels(labels);
+    refreshSlotOptions();
+    slotSel.value = String(slot);
+  } else {
+    filename = currentName + ".json";
+  }
   const blob = new Blob([JSON.stringify(currentJson, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const suffix = $("#fmtSel").value === "bridger" ? ".bridger.json" : ".json";
-  a.href = url; a.download = currentName + suffix;
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  if (isBridger) showMsg(`Downloaded ${filename} for RECKON slot ${slotSel.value}.`, "ok");
 });
 
 // Copy to clipboard (with fallback for non-secure contexts).
