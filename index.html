@@ -240,15 +240,19 @@
     </div>
 
     <div class="card">
-      <div class="row" style="justify-content: space-between; margin-bottom: 12px;">
+      <div class="row" style="justify-content: space-between; margin-bottom: 12px; gap:12px;">
         <h2 style="margin:0;">Output JSON</h2>
         <div class="row">
+          <select id="fmtSel" aria-label="Output format">
+            <option value="bridger">Bridger (RECKON watch)</option>
+            <option value="generic">Generic (full data)</option>
+          </select>
           <button id="copyBtn">Copy</button>
           <button id="dlBtn" class="primary">Download .json</button>
         </div>
       </div>
       <pre id="json"></pre>
-      <div class="hint">Generic schema (v1). When the watch&rsquo;s exact format is confirmed, only the emitter changes &mdash; not the parser.</div>
+      <div class="hint" id="fmtHint">Bridger format: elevation comeup only (distance + angle), matching the RECKON import schema.</div>
     </div>
   </div>
   </div><!-- /.desk-body -->
@@ -834,7 +838,8 @@ function solverToIR(opts, rows) {
     pressure:     { value: opts.pressureInHg, unit: "INHG" },
     humidity:     { value: null, unit: "%" }
   };
-  return { sourceFormat: "computed-solver", banner: "Computed", metadata: [], metaByName: {}, canonical, columns, rows: irRows };
+  return { sourceFormat: "computed-solver", banner: "Computed", metadata: [], metaByName: {}, canonical, columns, rows: irRows,
+           caliber: opts.caliber || "", bulletName: opts.bulletName || "", zeroRange: opts.zeroRangeYd ?? null };
 }
 
 /* ----------------------------------------------------------------------------
@@ -887,6 +892,100 @@ function emit(ir, sourceName) {
   };
 }
 
+/* ----------------------------------------------------------------------------
+   Bridger RECKON emitter. Target schema (from a real device sample):
+     { chart_id, units{range,Comeup_linear,Comeup_angle_unit},
+       range_settings{start_length,end_length,interval_length,interval_count,
+                      zero_range_length,table_display_range_length},
+       weapon_system{rifle{caliber,Name}},
+       ammunition{bullet{manufacturer,model,weight_grains,muzzle_velocity_fps}},
+       ballistic_table[{range_yards, comeup_distance, comeup_angle}] }
+
+   Mapping from our IR:
+   - comeup_distance = bullet drop in inches (our Drop column / dropIn). Negative.
+   - comeup_angle    = elevation hold, signed, up = positive (our elevation.signed).
+     MRAD and mil are treated as equivalent angular units here.
+   - Bridger carries elevation only (no wind), matching the device sample.
+---------------------------------------------------------------------------- */
+function findCol(ir, re) { return ir.columns.find(c => re.test(c.name)); }
+
+function rowDropInches(ir, r) {
+  // Prefer an explicit Drop column; fall back to deriving from elevation if absent.
+  const dropCol = findCol(ir, /^Drop$/i);
+  if (dropCol && typeof r[dropCol.name] === "number") return r[dropCol.name];
+  // Derive: drop(in) = -elevationSigned * 0.036 * range  (inverse of our mil calc)
+  const elCol = findCol(ir, /^(Elevation|Dialed El\.?)$/i);
+  const el = elCol ? r[elCol.name] : null;
+  if (el && typeof el === "object" && typeof el.signed === "number" && r.range > 0) {
+    return +(-(el.signed) * 0.036 * r.range).toFixed(2);
+  }
+  return null;
+}
+function rowElevationAngle(ir, r) {
+  const elCol = findCol(ir, /^Elevation$/i) || findCol(ir, /^Dialed El\.?$/i);
+  const el = elCol ? r[elCol.name] : null;
+  if (el && typeof el === "object" && typeof el.signed === "number") return el.signed;
+  return null;
+}
+
+function emitBridger(ir, sourceName) {
+  const c = ir.canonical;
+  const rows = ir.rows.slice().sort((a, b) => a.range - b.range);
+  const ranges = rows.map(r => r.range);
+  const start = ranges.length ? ranges[0] : null;
+  const end = ranges.length ? ranges[ranges.length - 1] : null;
+  // Interval: use the modal gap between consecutive ranges (robust to irregular last row).
+  let interval = null;
+  if (ranges.length >= 2) {
+    const gaps = {};
+    for (let i = 1; i < ranges.length; i++) { const g = ranges[i] - ranges[i - 1]; gaps[g] = (gaps[g] || 0) + 1; }
+    interval = +Object.keys(gaps).reduce((a, b) => gaps[b] > gaps[a] ? b : a);
+  }
+  // Angle unit: our imported AB cards are MRAD; calculator + Berger are mils (equivalent).
+  const angleUnit = "MRAD";
+
+  // Caliber: prefer parsed caliber; else derived from bullet name; else blank.
+  const caliber = (ir.caliber || "").trim();
+
+  // Bullet manufacturer/model: split a "103gr Accubond"-style label if present.
+  let manufacturer = "", model = "";
+  if (ir.bulletName) {
+    model = ir.bulletName;
+  }
+
+  const table = rows.map(r => ({
+    range_yards: r.range,
+    comeup_distance: rowDropInches(ir, r),
+    comeup_angle: rowElevationAngle(ir, r)
+  }));
+
+  const slug = (caliber || "dope").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  const chart_id = `${slug}_${start || 0}_${end || 0}yd`;
+
+  return {
+    chart_id,
+    units: { range: "yards", Comeup_linear: "inches", Comeup_angle_unit: angleUnit },
+    range_settings: {
+      start_length: start,
+      end_length: end,
+      interval_length: interval,
+      interval_count: rows.length,
+      zero_range_length: ir.zeroRange != null ? ir.zeroRange : start,
+      table_display_range_length: start
+    },
+    weapon_system: { rifle: { caliber: caliber, Name: "" } },
+    ammunition: {
+      bullet: {
+        manufacturer: manufacturer,
+        model: model,
+        weight_grains: c.bulletWeight.value,
+        muzzle_velocity_fps: c.muzzleVelocity.value
+      }
+    },
+    ballistic_table: table
+  };
+}
+
 // "Max Ord. Range" -> "maxOrdRange" ; "Windage 2" -> "windage2"
 function camel(name) {
   const cleaned = name.replace(/[^\w\s]/g, "").trim();
@@ -901,13 +1000,32 @@ function camel(name) {
 const $ = sel => document.querySelector(sel);
 const drop = $("#drop"), fileInput = $("#file"), msg = $("#msg");
 const resultEl = $("#result");
-let currentJson = null, currentName = "dope";
+let currentJson = null, currentName = "dope", currentIR = null, currentSource = null;
 
 function showMsg(text, kind) {
   msg.textContent = text;
   msg.className = "msg show " + kind;
 }
 function clearMsg() { msg.className = "msg"; msg.textContent = ""; }
+
+// Re-emit the output JSON from the stored IR per the selected format, and
+// refresh the preview. Called after a parse/calc and whenever the toggle changes.
+function rebuildOutput() {
+  if (!currentIR) return;
+  const fmt = $("#fmtSel").value;
+  if (fmt === "bridger") {
+    currentJson = emitBridger(currentIR, currentSource);
+    $("#fmtHint").textContent = "Bridger format: elevation comeup only (distance + angle), matching the RECKON import schema.";
+  } else {
+    currentJson = emit(currentIR, currentSource);
+    if (currentIR.sourceFormat === "computed-solver") {
+      currentJson.source.disclaimer = "Computed estimate from an independent open-source solver. Not the Applied Ballistics engine. Verify by live fire.";
+      if (currentIR.truedNote) currentJson.source.trued = currentIR.truedNote;
+    }
+    $("#fmtHint").textContent = "Generic format: full dope table with all columns the source provides.";
+  }
+  $("#json").textContent = JSON.stringify(currentJson, null, 2);
+}
 
 function render(ir, json, name) {
   // Metadata cards, rendered from the canonical namespace so both formats show
@@ -962,8 +1080,8 @@ function render(ir, json, name) {
   }
   $("#rowcount").textContent = ir.rows.length + " rows";
 
-  // JSON.
-  $("#json").textContent = JSON.stringify(json, null, 2);
+  // Output JSON is built by rebuildOutput() per the selected format.
+  rebuildOutput();
   resultEl.hidden = false;
 }
 
@@ -972,14 +1090,13 @@ function handleText(text, name) {
   try {
     const ir = parse(text);
     const baseName = (name || "dope").replace(/\.[^.]+$/, "");
-    const json = emit(ir, name || null);
-    currentJson = json; currentName = baseName;
-    render(ir, json, baseName);
+    currentIR = ir; currentSource = name || null; currentName = baseName;
+    render(ir, null, baseName);
     const label = ir.sourceFormat === "berger-ab-calculator" ? "Berger / AB calculator" : "Applied Ballistics target card";
     showMsg(`Parsed ${ir.rows.length} dope rows from "${name}" — detected ${label}.`, "ok");
   } catch (e) {
     resultEl.hidden = true;
-    currentJson = null;
+    currentJson = null; currentIR = null;
     const detail = (e instanceof ParseError) ? e.message : ("Unexpected error: " + e.message);
     showMsg(detail, "err");
   }
@@ -1110,11 +1227,14 @@ $("#calcBtn").addEventListener("click", () => {
   if (!press || press < 15 || press > 35) errs.push("pressure (15–35 inHg)");
   if (errs.length) { showMsg("Check these inputs: " + errs.join(", ") + ".", "err"); return; }
 
+  const selBullet = (() => { const i = parseInt(bulletSel.value, 10); return Number.isNaN(i) ? null : allBullets()[i]; })();
   let opts = {
     muzzleVelocity: mv, bc: bcIn, dragModel: model, zeroRangeYd: zero, sightHeightIn: sight,
     maxRangeYd: maxR, stepYd: step, tempF: temp, pressureInHg: press,
     windSpeed: num("#cWind"), windDirection: $("#cWindDir").value.trim() || null,
-    bulletWeightGr: num("#cBw")
+    bulletWeightGr: num("#cBw"),
+    bulletName: selBullet ? selBullet.name : "",
+    caliber: selBullet ? (selBullet.group || "") : ""
   };
 
   // Optional truing.
@@ -1134,11 +1254,9 @@ $("#calcBtn").addEventListener("click", () => {
     const rows = solve(opts);
     if (!rows.length) { showMsg("No solution produced — check inputs.", "err"); return; }
     const ir = solverToIR(opts, rows);
-    const json = emit(ir, null);
-    json.source.disclaimer = "Computed estimate from an independent open-source solver. Not the Applied Ballistics engine. Verify by live fire.";
-    if (truedNote) json.source.trued = truedNote.trim();
-    currentJson = json; currentName = "computed-dope";
-    render(ir, json, "computed-dope");
+    if (truedNote) ir.truedNote = truedNote.trim();
+    currentIR = ir; currentSource = null; currentName = "computed-dope";
+    render(ir, null, "computed-dope");
     showMsg(`Computed ${rows.length} rows.${truedNote} Estimate — verify by live fire.`, "ok");
   } catch (e) {
     resultEl.hidden = true; currentJson = null;
@@ -1146,13 +1264,17 @@ $("#calcBtn").addEventListener("click", () => {
   }
 });
 
+// Output format toggle.
+$("#fmtSel").addEventListener("change", rebuildOutput);
+
 // Download.
 $("#dlBtn").addEventListener("click", () => {
   if (!currentJson) return;
   const blob = new Blob([JSON.stringify(currentJson, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = currentName + ".json";
+  const suffix = $("#fmtSel").value === "bridger" ? ".bridger.json" : ".json";
+  a.href = url; a.download = currentName + suffix;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
