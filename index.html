@@ -146,6 +146,19 @@
   </header>
   <div class="sub">Convert ballistics dope into watch JSON. Runs entirely on your device. No data leaves this page.</div>
 
+  <div class="card">
+    <fieldset style="margin-top:0;">
+      <legend>Profile (fills the Bridger export — optional)</legend>
+      <div class="form-grid">
+        <div class="field"><label for="pCaliber">Caliber</label><input id="pCaliber" type="text" placeholder="e.g. 6mm Creedmoor" /></div>
+        <div class="field"><label for="pRifle">Rifle name</label><input id="pRifle" type="text" placeholder="e.g. Tikka T3x" /></div>
+        <div class="field"><label for="pManu">Bullet manufacturer</label><input id="pManu" type="text" placeholder="e.g. Hornady" /></div>
+        <div class="field"><label for="pModel">Bullet model</label><input id="pModel" type="text" placeholder="e.g. 108gr ELD-M" /></div>
+      </div>
+      <div class="hint">Applies to both Import and Calculate. Remembered on this device. Selecting a bullet in Calculate fills manufacturer/model, but anything you type here wins.</div>
+    </fieldset>
+  </div>
+
   <div class="tabs" role="tablist">
     <button class="tab" id="tabImport" role="tab" aria-selected="true" aria-controls="panelImport">Import a card</button>
     <button class="tab" id="tabCalc" role="tab" aria-selected="false" aria-controls="panelCalc">Calculate dope</button>
@@ -742,6 +755,16 @@ function saveSlotLabels(labels) {
   try { localStorage.setItem(SLOT_KEY, JSON.stringify(labels.slice(0, SLOT_COUNT))); return true; } catch { return false; }
 }
 
+// Shared profile (caliber, rifle name, bullet manufacturer/model). Remembered.
+const PROFILE_KEY = "dopeConverter.profile.v1";
+function loadProfile() {
+  try { const v = JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}"); return (v && typeof v === "object") ? v : {}; }
+  catch { return {}; }
+}
+function saveProfile(p) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); return true; } catch { return false; }
+}
+
 function cdInterp(table, mach) {
   if (mach <= table[0][0]) return table[0][1];
   const last = table[table.length - 1];
@@ -944,8 +967,9 @@ function rowElevationAngle(ir, r) {
   return null;
 }
 
-function emitBridger(ir, sourceName) {
+function emitBridger(ir, sourceName, profile) {
   const c = ir.canonical;
+  const p = profile || {};
   const rows = ir.rows.slice().sort((a, b) => a.range - b.range);
   const ranges = rows.map(r => r.range);
   const start = ranges.length ? ranges[0] : null;
@@ -960,14 +984,12 @@ function emitBridger(ir, sourceName) {
   // Angle unit: our imported AB cards are MRAD; calculator + Berger are mils (equivalent).
   const angleUnit = "MRAD";
 
-  // Caliber: prefer parsed caliber; else derived from bullet name; else blank.
-  const caliber = (ir.caliber || "").trim();
-
-  // Bullet manufacturer/model: split a "103gr Accubond"-style label if present.
-  let manufacturer = "", model = "";
-  if (ir.bulletName) {
-    model = ir.bulletName;
-  }
+  // Profile fields override IR-derived values; fall back to what the source carries.
+  const pick = (v, fb) => { const s = (v == null ? "" : String(v)).trim(); return s || (fb || ""); };
+  const caliber      = pick(p.caliber, ir.caliber);
+  const rifleName    = pick(p.rifle, "");
+  const manufacturer = pick(p.manufacturer, "");
+  const model        = pick(p.model, ir.bulletName);
 
   const table = rows.map(r => ({
     range_yards: r.range,
@@ -989,7 +1011,7 @@ function emitBridger(ir, sourceName) {
       zero_range_length: ir.zeroRange != null ? ir.zeroRange : start,
       table_display_range_length: start
     },
-    weapon_system: { rifle: { caliber: caliber, Name: "" } },
+    weapon_system: { rifle: { caliber: caliber, Name: rifleName } },
     ammunition: {
       bullet: {
         manufacturer: manufacturer,
@@ -1030,7 +1052,7 @@ function rebuildOutput() {
   if (!currentIR) return;
   const fmt = $("#fmtSel").value;
   if (fmt === "bridger") {
-    currentJson = emitBridger(currentIR, currentSource);
+    currentJson = emitBridger(currentIR, currentSource, getProfile());
     $("#fmtHint").textContent = "Bridger format: elevation comeup only (distance + angle), matching the RECKON import schema.";
   } else {
     currentJson = emit(currentIR, currentSource);
@@ -1183,6 +1205,12 @@ function refreshBulletOptions(selectName) {
     if (idx >= 0) bulletSel.value = String(idx);
   }
 }
+// Split a bullet name like ".243 108gr Hornady ELD-M" into { manufacturer, model }.
+function splitBulletName(name) {
+  const m = name.match(/^\S+\s+\S*gr\s+(\S+)\s+(.+)$/i);
+  if (m) return { manufacturer: m[1], model: m[2] };
+  return { manufacturer: "", model: name };
+}
 bulletSel.addEventListener("change", () => {
   const idx = parseInt(bulletSel.value, 10);
   if (Number.isNaN(idx)) return;
@@ -1191,6 +1219,12 @@ bulletSel.addEventListener("change", () => {
   $("#cBw").value = b.weight;
   $("#cBc").value = b.bc;
   $("#cModel").value = b.model;
+  // Pre-fill profile manufacturer/model/caliber only where the user hasn't typed.
+  const parts = splitBulletName(b.name);
+  if (!$(profIds.manufacturer).value.trim()) $(profIds.manufacturer).value = parts.manufacturer;
+  if (!$(profIds.model).value.trim()) $(profIds.model).value = b.weight + "gr " + parts.model;
+  if (!$(profIds.caliber).value.trim() && b.group) $(profIds.caliber).value = b.group;
+  persistProfile();
   showMsg(`Loaded ${b.name}: ${b.weight} gr, BC ${b.bc} (${b.model}). Set your muzzle velocity, then calculate.`, "ok");
 });
 
@@ -1279,6 +1313,24 @@ $("#calcBtn").addEventListener("click", () => {
     showMsg("Solver error: " + e.message, "err");
   }
 });
+
+// Shared profile fields.
+const profIds = { caliber: "#pCaliber", rifle: "#pRifle", manufacturer: "#pManu", model: "#pModel" };
+function getProfile() {
+  return {
+    caliber: $(profIds.caliber).value.trim(),
+    rifle: $(profIds.rifle).value.trim(),
+    manufacturer: $(profIds.manufacturer).value.trim(),
+    model: $(profIds.model).value.trim()
+  };
+}
+function restoreProfile() {
+  const p = loadProfile();
+  for (const k in profIds) if (p[k]) $(profIds[k]).value = p[k];
+}
+function persistProfile() { saveProfile(getProfile()); rebuildOutput(); }
+restoreProfile();
+for (const k in profIds) $(profIds[k]).addEventListener("input", persistProfile);
 
 // RECKON slot picker — populate from remembered labels, show only for Bridger.
 const slotSel = $("#slotSel");
