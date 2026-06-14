@@ -963,7 +963,10 @@ function rowDropInches(ir, r) {
 function rowElevationAngle(ir, r) {
   const elCol = findCol(ir, /^Elevation$/i) || findCol(ir, /^Dialed El\.?$/i);
   const el = elCol ? r[elCol.name] : null;
-  if (el && typeof el === "object" && typeof el.signed === "number") return el.signed;
+  // Output elevation as a positive "come up" value: 0.1 D -> 0.1, 16.9 U -> 16.9.
+  // A comeup chart dials positive holds; the sign in the source only marks
+  // up/down relative to a near-zero crossing, which the watch doesn't want here.
+  if (el && typeof el === "object" && typeof el.signed === "number") return Math.abs(el.signed);
   return null;
 }
 

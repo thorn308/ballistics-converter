@@ -1,7 +1,7 @@
 /* Offline-first service worker.
    Precaches the app shell so the converter works with no network.
    Bump CACHE when any shell file changes. */
-const CACHE = "dope-converter-v9";
+const CACHE = "dope-converter-v10";
 const SHELL = [
   "./",
   "./index.html",
