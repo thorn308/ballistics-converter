@@ -1152,13 +1152,19 @@ function emitBridger(ir, sourceName, profile, sdfValue, gunMph) {
 
   // Profile fields override IR-derived values; fall back to what the source carries.
   const pick = (v, fb) => { const s = (v == null ? "" : String(v)).trim(); return s || (fb || ""); };
-  const caliber      = pick(p.caliber, ir.caliber);
+  const baseCaliber  = pick(p.caliber, ir.caliber); // used for chart_id slug
+  let caliber        = baseCaliber;
   let rifleName      = pick(p.rifle, "");
-  // Append Speed Drop Factor and Gun MPH to the rifle name, e.g. "Tikka SDF 2.5 GUN 2.7".
-  const tags = [];
-  if (sdfValue != null && !Number.isNaN(sdfValue)) tags.push(`SDF ${(+sdfValue).toFixed(1)}`);
-  if (gunMph != null && !Number.isNaN(gunMph)) tags.push(`GUN ${(+gunMph).toFixed(1)}`);
-  if (tags.length) rifleName = rifleName ? `${rifleName} ${tags.join(" ")}` : tags.join(" ");
+  // SDF appends to the rifle name, e.g. "Tikka SDF 2.5".
+  if (sdfValue != null && !Number.isNaN(sdfValue)) {
+    const tag = `SDF ${(+sdfValue).toFixed(1)}`;
+    rifleName = rifleName ? `${rifleName} ${tag}` : tag;
+  }
+  // Gun MPH appends to the caliber, e.g. "6mm Creedmoor GUN 2.7".
+  if (gunMph != null && !Number.isNaN(gunMph)) {
+    const tag = `GUN ${(+gunMph).toFixed(1)}`;
+    caliber = caliber ? `${caliber} ${tag}` : tag;
+  }
   const manufacturer = pick(p.manufacturer, "");
   const model        = pick(p.model, ir.bulletName);
 
@@ -1168,7 +1174,7 @@ function emitBridger(ir, sourceName, profile, sdfValue, gunMph) {
     comeup_angle: rowElevationAngle(ir, r)
   }));
 
-  const slug = (caliber || "dope").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  const slug = (baseCaliber || "dope").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
   const chart_id = `${slug}_${start || 0}_${end || 0}yd`;
 
   return {
@@ -1254,7 +1260,7 @@ function renderGun() {
     `<strong style="font-size:18px;">${g.gunMph.toFixed(1)} MPH</strong> ` +
     `<span style="color:var(--label)">(from ${windNote}, anchored at ${g.anchor}yd)</span><br>` +
     `Full-value wind hold = (range ÷ 100 × 0.1) × (wind ÷ ${g.gunMph.toFixed(1)}).`;
-  hint.textContent = `Derived from the card's own windage. ${g.anchor === 1000 ? "Anchored at 1000yd (600yd needed ≥7 mph)." : "Anchored at 600yd = 0.6 mil."} Appended to rifle name as “GUN ${g.gunMph.toFixed(1)}”.`;
+  hint.textContent = `Derived from the card's own windage. ${g.anchor === 1000 ? "Anchored at 1000yd (600yd needed ≥7 mph)." : "Anchored at 600yd = 0.6 mil."} Appended to the caliber as “GUN ${g.gunMph.toFixed(1)}”.`;
 }
 
 // Re-emit the output JSON from the stored IR per the selected format, and
