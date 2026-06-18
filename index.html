@@ -87,6 +87,22 @@
   h2 { font-size: 12px; font-weight: 800; margin: 0 0 12px; color: var(--tan);
     text-transform: uppercase; letter-spacing: .14em; }
   .hint { color: var(--muted); font-size: 12px; margin-top: 9px; line-height: 1.55; }
+  .qmetrics { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 520px) { .qmetrics { grid-template-columns: 1fr; } }
+  .qmetric { min-width: 0; }
+  .qlabel { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--tan); margin-bottom: 4px; }
+  .qvalue { font-size: 30px; font-weight: 800; line-height: 1.05; color: var(--text); }
+  .qsub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .qinfo { margin-top: 10px; }
+  .qinfo > summary { cursor: pointer; font-size: 12px; color: var(--tan); list-style: none;
+    display: inline-flex; align-items: center; gap: 4px; user-select: none; }
+  .qinfo > summary::-webkit-details-marker { display: none; }
+  .qinfo > summary::before { content: "▸"; font-size: 10px; transition: transform .12s; }
+  .qinfo[open] > summary::before { transform: rotate(90deg); }
+  .qinfo > div { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+  .qrow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .qrow label { font-size: 12px; color: var(--label); }
   .badge { display: inline-block; background: var(--panel2); border: 1px solid var(--line);
     border-radius: 999px; padding: 3px 10px; font-family: var(--mono); font-size: 10.5px; color: var(--label);
     text-transform: uppercase; letter-spacing: 0.05em; }
@@ -252,27 +268,36 @@
       <div class="hint">Elevation/windage shown as exported (value + direction). Up/Right are positive when signed.</div>
     </div>
 
-    <div class="card" id="sdfCard">
-      <div class="row" style="justify-content: space-between; margin-bottom: 10px; gap:12px;">
-        <h2 style="margin:0;">Speed Drop Factor</h2>
-        <div class="row" style="gap:8px; align-items:center;">
-          <label for="sdfErr" style="font-size:12px; color:var(--label);">Allowed error</label>
-          <select id="sdfErr" aria-label="Allowed error">
-            <option value="0.1" selected>0.1 mil</option>
-            <option value="0.2">0.2 mil</option>
-            <option value="0.3">0.3 mil</option>
-            <option value="0.4">0.4 mil</option>
-          </select>
+    <div class="card" id="quickCard">
+      <div class="qmetrics">
+        <div class="qmetric">
+          <div class="qlabel">Speed Drop Factor</div>
+          <div class="qvalue" id="sdfValue">—</div>
+          <div class="qsub" id="sdfSub"></div>
+          <details class="qinfo" id="sdfDetails">
+            <summary>details</summary>
+            <div class="qrow">
+              <label for="sdfErr">Allowed error</label>
+              <select id="sdfErr" aria-label="Allowed error">
+                <option value="0.1" selected>0.1 mil</option>
+                <option value="0.2">0.2 mil</option>
+                <option value="0.3">0.3 mil</option>
+                <option value="0.4">0.4 mil</option>
+              </select>
+            </div>
+            <div id="sdfInfo"></div>
+          </details>
+        </div>
+        <div class="qmetric" id="gunMetric">
+          <div class="qlabel">Gun MPH</div>
+          <div class="qvalue" id="gunValue">—</div>
+          <div class="qsub" id="gunSub"></div>
+          <details class="qinfo" id="gunDetails">
+            <summary>details</summary>
+            <div id="gunInfo"></div>
+          </details>
         </div>
       </div>
-      <div id="sdfSummary" style="font-size:14px;"></div>
-      <div class="hint" id="sdfHint"></div>
-    </div>
-
-    <div class="card" id="gunCard">
-      <h2 style="margin:0 0 10px;">Gun MPH (wind number)</h2>
-      <div id="gunSummary" style="font-size:14px;"></div>
-      <div class="hint" id="gunHint"></div>
     </div>
 
     <div class="card">
@@ -1229,38 +1254,39 @@ let currentSDF = null;
 function renderSDF() {
   const err = parseFloat($("#sdfErr").value) || 0.1;
   currentSDF = currentIR ? computeSDF(currentIR, err) : null;
-  const sum = $("#sdfSummary"), hint = $("#sdfHint");
+  const val = $("#sdfValue"), sub = $("#sdfSub"), info = $("#sdfInfo");
   if (!currentSDF) {
-    sum.innerHTML = "<span style='color:var(--label)'>Not enough data to compute.</span>";
-    hint.textContent = "";
+    val.textContent = "—"; sub.textContent = "not enough data"; info.textContent = "";
     return;
   }
   const s = currentSDF;
   const windowTxt = (s.usableMin != null && s.usableMax != null && s.usableMax > s.usableMin)
-    ? `${s.usableMin}–${s.usableMax} yd` : "very narrow at these data points";
-  sum.innerHTML =
-    `<strong style="font-size:18px;">SDF ${s.sdf.toFixed(1)}</strong> ` +
-    `<span style="color:var(--label)">(prime ${s.prime.toFixed(2)} @ ${s.primeRange}yd, ${err.toFixed(1)} mil error)</span><br>` +
-    `Usable: <strong>${windowTxt}</strong>. In field: come-up = (range ÷ 100) − ${s.sdf.toFixed(1)}.`;
-  hint.textContent = "Computed at 25 yd (interpolated). Mil only. Appended to the rifle name in Bridger export as “SDF " + s.sdf.toFixed(1) + "”.";
+    ? `${s.usableMin}–${s.usableMax} yd` : "narrow window";
+  val.textContent = s.sdf.toFixed(1);
+  sub.textContent = `usable ${windowTxt}`;
+  info.innerHTML =
+    `Come-up = (range ÷ 100) − ${s.sdf.toFixed(1)}.<br>` +
+    `Prime ${s.prime.toFixed(2)} @ ${s.primeRange} yd, ${err.toFixed(1)} mil error. ` +
+    `Computed at 25 yd interpolated, mil only. Exports as “SDF ${s.sdf.toFixed(1)}” on the rifle name.`;
 }
 
 let currentGun = null;
 function renderGun() {
   currentGun = currentIR ? computeGunMPH(currentIR) : null;
-  const sum = $("#gunSummary"), hint = $("#gunHint"), card = $("#gunCard");
+  const metric = $("#gunMetric"), val = $("#gunValue"), sub = $("#gunSub"), info = $("#gunInfo");
   if (!currentGun) {
-    card.style.display = "none";
+    metric.style.display = "none";
     return;
   }
-  card.style.display = "";
+  metric.style.display = "";
   const g = currentGun;
-  const windNote = g.assumedWind ? `assumed 5 mph (card had none)` : `${g.sourceWind} mph card data`;
-  sum.innerHTML =
-    `<strong style="font-size:18px;">${g.gunMph.toFixed(1)} MPH</strong> ` +
-    `<span style="color:var(--label)">(from ${windNote}, anchored at ${g.anchor}yd)</span><br>` +
-    `Full-value wind hold = (range ÷ 100 × 0.1) × (wind ÷ ${g.gunMph.toFixed(1)}).`;
-  hint.textContent = `Derived from the card's own windage. ${g.anchor === 1000 ? "Anchored at 1000yd (600yd needed ≥7 mph)." : "Anchored at 600yd = 0.6 mil."} Appended to the caliber as “GUN ${g.gunMph.toFixed(1)}”.`;
+  const windNote = g.assumedWind ? `assumed 5 mph` : `${g.sourceWind} mph data`;
+  val.textContent = g.gunMph.toFixed(1);
+  sub.textContent = `anchored ${g.anchor} yd`;
+  info.innerHTML =
+    `Wind hold = (range ÷ 100 × 0.1) × (wind ÷ ${g.gunMph.toFixed(1)}).<br>` +
+    `From ${windNote}. ${g.anchor === 1000 ? "Anchored 1000 yd (600 needed ≥7 mph)." : "Anchored 600 yd = 0.6 mil."} ` +
+    `Exports as “GUN ${g.gunMph.toFixed(1)}” on the caliber.`;
 }
 
 // Re-emit the output JSON from the stored IR per the selected format, and
