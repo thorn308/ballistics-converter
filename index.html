@@ -1142,8 +1142,21 @@ function computeGunMPH(ir) {
   const ws1 = ir.canonical && ir.canonical.windSpeed ? ir.canonical.windSpeed.value : null;
   const ws2 = ir.canonical && ir.canonical.windSpeed2 ? ir.canonical.windSpeed2.value : null;
 
+  // Windage 2 is only usable for separation if it actually carries data: a
+  // higher wind speed must produce MORE drift, so Windage2 should exceed Windage
+  // at distance. An empty/zero (or smaller) Windage2 column means the card
+  // didn't compute a second wind — do NOT treat it as pure-wind.
+  let w2Usable = false;
+  if (w2.length === w1.length && w2.length >= 2 && ws1 > 0 && ws2 > ws1) {
+    const w2HasData = w2.some(p => p.mil > 0);
+    // At the longest common range, the higher-wind column must drift more.
+    const last = w1.length - 1;
+    const w2Bigger = w2[last].mil > w1[last].mil + 1e-9;
+    w2Usable = w2HasData && w2Bigger;
+  }
+
   let series, basisWind, method, assumedWind = false;
-  if (w1.length >= 2 && w2.length === w1.length && ws1 > 0 && ws2 > 0 && ws2 !== ws1) {
+  if (w1.length >= 2 && w2Usable) {
     // Pure wind per (ws2-ws1) mph: difference of the two columns, range-aligned.
     const byRange = {};
     w1.forEach(p => { byRange[p.range] = { a: p.mil }; });
