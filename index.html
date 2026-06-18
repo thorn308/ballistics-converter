@@ -87,21 +87,20 @@
   h2 { font-size: 12px; font-weight: 800; margin: 0 0 12px; color: var(--tan);
     text-transform: uppercase; letter-spacing: .14em; }
   .hint { color: var(--muted); font-size: 12px; margin-top: 9px; line-height: 1.55; }
-  .qmetrics { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 520px) { .qmetrics { grid-template-columns: 1fr; } }
   .qmetric { min-width: 0; }
+  .qhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
   .qlabel { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-    text-transform: uppercase; color: var(--tan); margin-bottom: 4px; }
-  .qvalue { font-size: 30px; font-weight: 800; line-height: 1.05; color: var(--text); }
-  .qsub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
-  .qinfo { margin-top: 10px; }
+    text-transform: uppercase; color: var(--tan); }
+  .qvalue { font-size: 32px; font-weight: 800; line-height: 1.05; color: var(--text); }
+  .qsub { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .qinfo { margin-top: 12px; }
   .qinfo > summary { cursor: pointer; font-size: 12px; color: var(--tan); list-style: none;
     display: inline-flex; align-items: center; gap: 4px; user-select: none; }
   .qinfo > summary::-webkit-details-marker { display: none; }
   .qinfo > summary::before { content: "▸"; font-size: 10px; transition: transform .12s; }
   .qinfo[open] > summary::before { transform: rotate(90deg); }
-  .qinfo > div { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
-  .qrow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .qinfo > div { font-size: 12px; color: var(--muted); line-height: 1.55; margin-top: 8px; }
+  .qrow { display: flex; align-items: center; gap: 8px; }
   .qrow label { font-size: 12px; color: var(--label); }
   .badge { display: inline-block; background: var(--panel2); border: 1px solid var(--line);
     border-radius: 999px; padding: 3px 10px; font-family: var(--mono); font-size: 10.5px; color: var(--label);
@@ -268,36 +267,37 @@
       <div class="hint">Elevation/windage shown as exported (value + direction). Up/Right are positive when signed.</div>
     </div>
 
-    <div class="card" id="quickCard">
-      <div class="qmetrics">
-        <div class="qmetric">
-          <div class="qlabel">Speed Drop Factor</div>
-          <div class="qvalue" id="sdfValue">—</div>
-          <div class="qsub" id="sdfSub"></div>
-          <details class="qinfo" id="sdfDetails">
-            <summary>details</summary>
-            <div class="qrow">
-              <label for="sdfErr">Allowed error</label>
-              <select id="sdfErr" aria-label="Allowed error">
-                <option value="0.1" selected>0.1 mil</option>
-                <option value="0.2">0.2 mil</option>
-                <option value="0.3">0.3 mil</option>
-                <option value="0.4">0.4 mil</option>
-              </select>
-            </div>
-            <div id="sdfInfo"></div>
-          </details>
-        </div>
-        <div class="qmetric" id="gunMetric">
-          <div class="qlabel">Gun MPH</div>
-          <div class="qvalue" id="gunValue">—</div>
-          <div class="qsub" id="gunSub"></div>
-          <details class="qinfo" id="gunDetails">
-            <summary>details</summary>
-            <div id="gunInfo"></div>
-          </details>
+    <div class="card qmetric" id="sdfCard">
+      <div class="qhead">
+        <div class="qlabel">Speed Drop Factor</div>
+        <div class="qrow">
+          <label for="sdfErr">Error</label>
+          <select id="sdfErr" aria-label="Allowed error">
+            <option value="0.1" selected>0.1 mil</option>
+            <option value="0.2">0.2 mil</option>
+            <option value="0.3">0.3 mil</option>
+            <option value="0.4">0.4 mil</option>
+          </select>
         </div>
       </div>
+      <div class="qvalue" id="sdfValue">—</div>
+      <div class="qsub" id="sdfSub"></div>
+      <details class="qinfo" id="sdfDetails">
+        <summary>details</summary>
+        <div id="sdfInfo"></div>
+      </details>
+    </div>
+
+    <div class="card qmetric" id="gunCard">
+      <div class="qhead">
+        <div class="qlabel">Gun MPH</div>
+      </div>
+      <div class="qvalue" id="gunValue">—</div>
+      <div class="qsub" id="gunSub"></div>
+      <details class="qinfo" id="gunDetails">
+        <summary>details</summary>
+        <div id="gunInfo"></div>
+      </details>
     </div>
 
     <div class="card">
@@ -1273,12 +1273,12 @@ function renderSDF() {
 let currentGun = null;
 function renderGun() {
   currentGun = currentIR ? computeGunMPH(currentIR) : null;
-  const metric = $("#gunMetric"), val = $("#gunValue"), sub = $("#gunSub"), info = $("#gunInfo");
+  const card = $("#gunCard"), val = $("#gunValue"), sub = $("#gunSub"), info = $("#gunInfo");
   if (!currentGun) {
-    metric.style.display = "none";
+    card.style.display = "none";
     return;
   }
-  metric.style.display = "";
+  card.style.display = "";
   const g = currentGun;
   const windNote = g.assumedWind ? `assumed 5 mph` : `${g.sourceWind} mph data`;
   val.textContent = g.gunMph.toFixed(1);
