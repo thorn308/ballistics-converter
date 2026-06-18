@@ -252,6 +252,23 @@
       <div class="hint">Elevation/windage shown as exported (value + direction). Up/Right are positive when signed.</div>
     </div>
 
+    <div class="card" id="sdfCard">
+      <div class="row" style="justify-content: space-between; margin-bottom: 10px; gap:12px;">
+        <h2 style="margin:0;">Speed Drop Factor</h2>
+        <div class="row" style="gap:8px; align-items:center;">
+          <label for="sdfErr" style="font-size:12px; color:var(--label);">Allowed error</label>
+          <select id="sdfErr" aria-label="Allowed error">
+            <option value="0.1" selected>0.1 mil</option>
+            <option value="0.2">0.2 mil</option>
+            <option value="0.3">0.3 mil</option>
+            <option value="0.4">0.4 mil</option>
+          </select>
+        </div>
+      </div>
+      <div id="sdfSummary" style="font-size:14px;"></div>
+      <div class="hint" id="sdfHint"></div>
+    </div>
+
     <div class="card">
       <div class="row" style="justify-content: space-between; margin-bottom: 12px; gap:12px;">
         <h2 style="margin:0;">Output JSON</h2>
@@ -970,7 +987,58 @@ function rowElevationAngle(ir, r) {
   return null;
 }
 
-function emitBridger(ir, sourceName, profile) {
+/* ----------------------------------------------------------------------------
+   Speed Drop Factor (per Ted Hoeger / Jack Master).
+   factor(range) = range/100 - comeup_mils. Prime = highest factor. Chosen SDF
+   = prime - allowedError. Usable window = ranges where |factor - SDF| <= error.
+   Mil only. Computed at 25yd via linear interpolation of the dope for a finer
+   prime/window than the 100yd table gives. Does NOT alter the exported table.
+---------------------------------------------------------------------------- */
+function elevationSeries(ir) {
+  // [{range, mil}] using the (positive) elevation comeup, sorted by range.
+  const rows = ir.rows.slice().sort((a, b) => a.range - b.range);
+  const out = [];
+  for (const r of rows) {
+    const a = rowElevationAngle(ir, r); // already abs() positive
+    if (typeof a === "number" && typeof r.range === "number") out.push({ range: r.range, mil: a });
+  }
+  return out;
+}
+function interpToStep(series, step) {
+  if (series.length < 2) return series.slice();
+  const start = series[0].range, end = series[series.length - 1].range;
+  const out = [];
+  let i = 0;
+  for (let x = start; x <= end + 1e-6; x += step) {
+    while (i < series.length - 2 && series[i + 1].range < x) i++;
+    const a = series[i], b = series[i + 1] || series[i];
+    let mil;
+    if (b.range === a.range) mil = a.mil;
+    else { const t = (x - a.range) / (b.range - a.range); mil = a.mil + t * (b.mil - a.mil); }
+    out.push({ range: Math.round(x), mil: +mil.toFixed(3) });
+  }
+  return out;
+}
+function computeSDF(ir, allowedError) {
+  const series = elevationSeries(ir);
+  if (series.length < 2) return null;
+  const fine = interpToStep(series, 25);
+  const factors = fine.map(p => ({ range: p.range, mil: p.mil, factor: +(p.range / 100 - p.mil).toFixed(2) }));
+  const prime = Math.max(...factors.map(f => f.factor));
+  // Prime range = center of the ranges sharing the max factor.
+  const atPrime = factors.filter(f => f.factor === prime).map(f => f.range);
+  const primeRange = atPrime[Math.floor(atPrime.length / 2)];
+  const err = (allowedError == null) ? 0.1 : allowedError;
+  const sdf = +(prime - err).toFixed(2);
+  // Usable window: contiguous ranges around primeRange where |factor - sdf| <= err.
+  const usable = factors.filter(f => Math.abs(f.factor - sdf) <= err + 1e-9).map(f => f.range);
+  const minR = usable.length ? Math.min(...usable) : null;
+  const maxR = usable.length ? Math.max(...usable) : null;
+  return { prime, primeRange, sdf, allowedError: err, usableMin: minR, usableMax: maxR, factors,
+           coarse: series.map(p => ({ range: p.range, mil: p.mil, factor: +(p.range / 100 - p.mil).toFixed(2) })) };
+}
+
+function emitBridger(ir, sourceName, profile, sdfValue) {
   const c = ir.canonical;
   const p = profile || {};
   const rows = ir.rows.slice().sort((a, b) => a.range - b.range);
@@ -990,7 +1058,12 @@ function emitBridger(ir, sourceName, profile) {
   // Profile fields override IR-derived values; fall back to what the source carries.
   const pick = (v, fb) => { const s = (v == null ? "" : String(v)).trim(); return s || (fb || ""); };
   const caliber      = pick(p.caliber, ir.caliber);
-  const rifleName    = pick(p.rifle, "");
+  let rifleName      = pick(p.rifle, "");
+  // Append the Speed Drop Factor to the rifle name if provided, e.g. "Tikka SDF 2.5".
+  if (sdfValue != null && !Number.isNaN(sdfValue)) {
+    const tag = `SDF ${(+sdfValue).toFixed(1)}`;
+    rifleName = rifleName ? `${rifleName} ${tag}` : tag;
+  }
   const manufacturer = pick(p.manufacturer, "");
   const model        = pick(p.model, ir.bulletName);
 
@@ -1051,11 +1124,35 @@ function clearMsg() { msg.className = "msg"; msg.textContent = ""; }
 
 // Re-emit the output JSON from the stored IR per the selected format, and
 // refresh the preview. Called after a parse/calc and whenever the toggle changes.
+let currentSDF = null;
+function renderSDF() {
+  const err = parseFloat($("#sdfErr").value) || 0.1;
+  currentSDF = currentIR ? computeSDF(currentIR, err) : null;
+  const sum = $("#sdfSummary"), hint = $("#sdfHint");
+  if (!currentSDF) {
+    sum.innerHTML = "<span style='color:var(--label)'>Not enough data to compute.</span>";
+    hint.textContent = "";
+    return;
+  }
+  const s = currentSDF;
+  const windowTxt = (s.usableMin != null && s.usableMax != null && s.usableMax > s.usableMin)
+    ? `${s.usableMin}–${s.usableMax} yd` : "very narrow at these data points";
+  sum.innerHTML =
+    `<strong style="font-size:18px;">SDF ${s.sdf.toFixed(1)}</strong> ` +
+    `<span style="color:var(--label)">(prime ${s.prime.toFixed(2)} @ ${s.primeRange}yd, ${err.toFixed(1)} mil error)</span><br>` +
+    `Usable: <strong>${windowTxt}</strong>. In field: come-up = (range ÷ 100) − ${s.sdf.toFixed(1)}.`;
+  hint.textContent = "Computed at 25 yd (interpolated). Mil only. Appended to the rifle name in Bridger export as “SDF " + s.sdf.toFixed(1) + "”.";
+}
+
+// Re-emit the output JSON from the stored IR per the selected format, and
+// refresh the preview. Called after a parse/calc and whenever the toggle changes.
 function rebuildOutput() {
   if (!currentIR) return;
+  renderSDF();
   const fmt = $("#fmtSel").value;
   if (fmt === "bridger") {
-    currentJson = emitBridger(currentIR, currentSource, getProfile());
+    const sdfVal = currentSDF ? currentSDF.sdf : null;
+    currentJson = emitBridger(currentIR, currentSource, getProfile(), sdfVal);
     $("#fmtHint").textContent = "Bridger format: elevation comeup only (distance + angle), matching the RECKON import schema.";
   } else {
     currentJson = emit(currentIR, currentSource);
@@ -1357,6 +1454,9 @@ updateSlotVisibility();
 
 // Output format toggle.
 $("#fmtSel").addEventListener("change", () => { updateSlotVisibility(); rebuildOutput(); });
+
+// SDF allowed-error control.
+$("#sdfErr").addEventListener("change", rebuildOutput);
 
 // Download.
 $("#dlBtn").addEventListener("click", () => {
