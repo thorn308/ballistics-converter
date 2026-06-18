@@ -1102,8 +1102,8 @@ function computeSDF(ir, allowedError) {
    Auto-anchor: prefer 600yd; if that yields >=7 mph (high-BC loads), use 1000yd
    for better near-range precision (per the article's note). Mil only.
 ---------------------------------------------------------------------------- */
-function windageSeries(ir) {
-  const wcol = ir.columns.find(c => /^Windage$/i.test(c.name));
+function windageColSeries(ir, re) {
+  const wcol = ir.columns.find(c => re.test(c.name));
   if (!wcol) return [];
   const rows = ir.rows.slice().sort((a, b) => a.range - b.range);
   const out = [];
@@ -1115,6 +1115,7 @@ function windageSeries(ir) {
   }
   return out;
 }
+function windageSeries(ir) { return windageColSeries(ir, /^Windage$/i); }
 function windageAt(series, range) {
   if (!series.length) return null;
   const exact = series.find(p => p.range === range);
@@ -1131,20 +1132,40 @@ function windageAt(series, range) {
   return null;
 }
 function computeGunMPH(ir) {
-  const series = windageSeries(ir);
-  if (series.length < 2) return null;
-  // A true zero-windage card carries no wind drift to scale — can't derive.
-  const hasDrift = series.some(p => p.mil > 0);
-  if (!hasDrift) return null;
-  // Wind speed basis: use the card's value; if missing/zero but drift exists,
-  // assume 5 mph (default) and flag it.
-  let srcWind = ir.canonical && ir.canonical.windSpeed ? ir.canonical.windSpeed.value : null;
-  let assumedWind = false;
-  if (!srcWind || srcWind <= 0) { srcWind = 5; assumedWind = true; }
+  // PURE WIND ISOLATION: AB's Windage column can include a small spin-drift
+  // component (spin drift doesn't scale with wind). If a second windage column
+  // at a different wind speed exists, the difference (Windage2 - Windage)
+  // cancels spin drift exactly and is pure wind for (windSpeed2 - windSpeed) mph.
+  // Otherwise fall back to the single column scaled by its wind speed (flagged).
+  const w1 = windageSeries(ir);
+  const w2 = windageColSeries(ir, /^Windage 2$/i);
+  const ws1 = ir.canonical && ir.canonical.windSpeed ? ir.canonical.windSpeed.value : null;
+  const ws2 = ir.canonical && ir.canonical.windSpeed2 ? ir.canonical.windSpeed2.value : null;
+
+  let series, basisWind, method, assumedWind = false;
+  if (w1.length >= 2 && w2.length === w1.length && ws1 > 0 && ws2 > 0 && ws2 !== ws1) {
+    // Pure wind per (ws2-ws1) mph: difference of the two columns, range-aligned.
+    const byRange = {};
+    w1.forEach(p => { byRange[p.range] = { a: p.mil }; });
+    w2.forEach(p => { if (byRange[p.range]) byRange[p.range].b = p.mil; });
+    series = Object.keys(byRange).map(Number).sort((a, b) => a - b)
+      .filter(r => byRange[r].b != null)
+      .map(r => ({ range: r, mil: Math.abs(byRange[r].b - byRange[r].a) }));
+    basisWind = Math.abs(ws2 - ws1);
+    method = "pure-wind (Windage2 − Windage, spin drift removed)";
+  } else {
+    series = w1;
+    basisWind = ws1;
+    if (!basisWind || basisWind <= 0) { basisWind = 5; assumedWind = true; }
+    method = "single windage column (may include slight spin drift)";
+  }
+  if (!series || series.length < 2) return null;
+  if (!series.some(p => p.mil > 0)) return null;
+
   const calc = (range, targetMil) => {
     const w = windageAt(series, range);
     if (!w || w <= 0) return null;
-    return srcWind * targetMil / w;
+    return basisWind * targetMil / w;
   };
   const g600 = calc(600, 0.6);
   const g1000 = calc(1000, 1.0);
@@ -1153,7 +1174,8 @@ function computeGunMPH(ir) {
   else if (g1000 != null) { anchor = 1000; gunMph = g1000; }
   else if (g600 != null) { anchor = 600; gunMph = g600; }
   else return null;
-  return { gunMph: +gunMph.toFixed(1), anchor, sourceWind: srcWind, assumedWind,
+  return { gunMph: +gunMph.toFixed(1), anchor, sourceWind: basisWind, assumedWind, method,
+           pureWind: method.startsWith("pure-wind"),
            g600: g600 != null ? +g600.toFixed(2) : null,
            g1000: g1000 != null ? +g1000.toFixed(2) : null };
 }
@@ -1282,10 +1304,11 @@ function renderGun() {
   const g = currentGun;
   const windNote = g.assumedWind ? `assumed 5 mph` : `${g.sourceWind} mph data`;
   val.textContent = g.gunMph.toFixed(1);
-  sub.textContent = `anchored ${g.anchor} yd`;
+  sub.textContent = `anchored ${g.anchor} yd` + (g.pureWind ? " · pure wind" : "");
   info.innerHTML =
     `Wind hold = (range ÷ 100 × 0.1) × (wind ÷ ${g.gunMph.toFixed(1)}).<br>` +
-    `From ${windNote}. ${g.anchor === 1000 ? "Anchored 1000 yd (600 needed ≥7 mph)." : "Anchored 600 yd = 0.6 mil."} ` +
+    `${g.pureWind ? "Spin drift removed via Windage 2 − Windage." : "From " + windNote + "."} ` +
+    `${g.anchor === 1000 ? "Anchored 1000 yd (600 needed ≥7 mph)." : "Anchored 600 yd = 0.6 mil."} ` +
     `Exports as “GUN ${g.gunMph.toFixed(1)}” on the caliber.`;
 }
 
