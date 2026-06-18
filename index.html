@@ -215,7 +215,7 @@
         <div class="field"><label for="cStep">Step (yd)</label><input id="cStep" type="number" inputmode="numeric" value="100" /></div>
         <div class="field"><label for="cTemp">Temperature (&deg;F)</label><input id="cTemp" type="number" inputmode="decimal" value="59" /></div>
         <div class="field"><label for="cPress">Pressure (inHg)</label><input id="cPress" type="number" inputmode="decimal" step="0.01" value="29.92" /></div>
-        <div class="field"><label for="cWind">Wind speed (mph)</label><input id="cWind" type="number" inputmode="decimal" value="0" /></div>
+        <div class="field"><label for="cWind">Wind speed (mph)</label><input id="cWind" type="number" inputmode="decimal" value="5" /></div>
         <div class="field"><label for="cWindDir">Wind dir (o'clock)</label><input id="cWindDir" type="text" value="3" /></div>
       </div>
 
@@ -837,9 +837,22 @@ function solve(o) {
       const tx = targets[ti] * 3, f = (tx - x) / (nx - x);
       const yy = y + f * (ny - y), vv = prevV + f * (nv - prevV), tt = (t - dt) + f * dt;
       const dropIn = yy * 12;
+      const rangeYd = targets[ti];
+      // Crosswind drift (lag-time method): drift_in = Vw_fps * (ToF - range/MV) * 12.
+      // Vw from full-value (90deg) component of the wind speed. Validated vs AB
+      // cards: ~1 click supersonic, more transonic; truing tightens it.
+      let windageMil = 0;
+      const windMph = o.windSpeed || 0;
+      if (windMph > 0 && rangeYd > 0) {
+        const vw = windMph * 1.46667;            // crosswind, fps
+        const lag = tt - (rangeYd * 3) / o.muzzleVelocity;
+        const driftIn = vw * lag * 12;
+        windageMil = +(driftIn / (0.036 * rangeYd)).toFixed(2);
+      }
       out.push({
-        rangeYd: targets[ti], velocity: Math.round(vv), dropIn: +dropIn.toFixed(2),
-        elevationMil: targets[ti] > 0 ? +((-dropIn) / (0.036 * targets[ti])).toFixed(2) : 0,
+        rangeYd, velocity: Math.round(vv), dropIn: +dropIn.toFixed(2),
+        elevationMil: rangeYd > 0 ? +((-dropIn) / (0.036 * rangeYd)).toFixed(2) : 0,
+        windageMil,
         tof: +tt.toFixed(2)
       });
       ti++;
@@ -865,21 +878,25 @@ function trueBC(o, atRangeYd, observedMil) {
 /* Build the shared IR from solver output, so the SAME emitter/render path is
    reused. Elevation is signed via the directional shape (up = positive). */
 function solverToIR(opts, rows) {
+  const hasWind = rows.some(r => typeof r.windageMil === "number" && r.windageMil !== 0);
   const columns = [
     { name: "Range", unit: "Y" },
-    { name: "Elevation", unit: "MIL" },
+    { name: "Elevation", unit: "MIL" }
+  ];
+  if (hasWind) columns.push({ name: "Windage", unit: "MIL" });
+  columns.push(
     { name: "Velocity", unit: "FPS" },
     { name: "Energy", unit: "FT-LB" },
     { name: "Drop", unit: "IN" },
     { name: "ToF", unit: "S" }
-  ];
+  );
   // Energy (ft-lbf) = m v^2 / 450240, m in grains.
   const bw = opts.bulletWeightGr || null;
   const irRows = rows.map(r => {
     const signed = +r.elevationMil.toFixed(2);
     const dir = signed === 0 ? null : (signed > 0 ? "U" : "D");
     const energy = bw ? Math.round(bw * r.velocity * r.velocity / 450240) : null;
-    return {
+    const row = {
       range: r.rangeYd,
       Elevation: { raw: dir ? `${Math.abs(signed)} ${dir}` : `${Math.abs(signed)}`, value: Math.abs(signed), dir, signed },
       Velocity: r.velocity,
@@ -887,6 +904,14 @@ function solverToIR(opts, rows) {
       Drop: r.dropIn,
       ToF: r.tof
     };
+    if (hasWind) {
+      const w = +(r.windageMil || 0).toFixed(2);
+      // Full-value wind blowing L->R drifts the bullet right (positive). Direction
+      // label R for positive; the magnitude is what matters for Gun MPH.
+      const wdir = w === 0 ? null : (w > 0 ? "R" : "L");
+      row.Windage = { raw: wdir ? `${Math.abs(w)} ${wdir}` : `${Math.abs(w)}`, value: Math.abs(w), dir: wdir, signed: w };
+    }
+    return row;
   });
   const canonical = {
     muzzleVelocity: { value: opts.muzzleVelocity, unit: "FPS" },
@@ -1081,10 +1106,16 @@ function windageAt(series, range) {
   return null;
 }
 function computeGunMPH(ir) {
-  const srcWind = ir.canonical && ir.canonical.windSpeed ? ir.canonical.windSpeed.value : null;
-  if (!srcWind || srcWind <= 0) return null; // need non-zero wind on the card
   const series = windageSeries(ir);
   if (series.length < 2) return null;
+  // A true zero-windage card carries no wind drift to scale — can't derive.
+  const hasDrift = series.some(p => p.mil > 0);
+  if (!hasDrift) return null;
+  // Wind speed basis: use the card's value; if missing/zero but drift exists,
+  // assume 5 mph (default) and flag it.
+  let srcWind = ir.canonical && ir.canonical.windSpeed ? ir.canonical.windSpeed.value : null;
+  let assumedWind = false;
+  if (!srcWind || srcWind <= 0) { srcWind = 5; assumedWind = true; }
   const calc = (range, targetMil) => {
     const w = windageAt(series, range);
     if (!w || w <= 0) return null;
@@ -1097,7 +1128,7 @@ function computeGunMPH(ir) {
   else if (g1000 != null) { anchor = 1000; gunMph = g1000; }
   else if (g600 != null) { anchor = 600; gunMph = g600; }
   else return null;
-  return { gunMph: +gunMph.toFixed(1), anchor, sourceWind: srcWind,
+  return { gunMph: +gunMph.toFixed(1), anchor, sourceWind: srcWind, assumedWind,
            g600: g600 != null ? +g600.toFixed(2) : null,
            g1000: g1000 != null ? +g1000.toFixed(2) : null };
 }
@@ -1218,9 +1249,10 @@ function renderGun() {
   }
   card.style.display = "";
   const g = currentGun;
+  const windNote = g.assumedWind ? `assumed 5 mph (card had none)` : `${g.sourceWind} mph card data`;
   sum.innerHTML =
     `<strong style="font-size:18px;">${g.gunMph.toFixed(1)} MPH</strong> ` +
-    `<span style="color:var(--label)">(from ${g.sourceWind} mph card data, anchored at ${g.anchor}yd)</span><br>` +
+    `<span style="color:var(--label)">(from ${windNote}, anchored at ${g.anchor}yd)</span><br>` +
     `Full-value wind hold = (range ÷ 100 × 0.1) × (wind ÷ ${g.gunMph.toFixed(1)}).`;
   hint.textContent = `Derived from the card's own windage. ${g.anchor === 1000 ? "Anchored at 1000yd (600yd needed ≥7 mph)." : "Anchored at 600yd = 0.6 mil."} Appended to rifle name as “GUN ${g.gunMph.toFixed(1)}”.`;
 }
@@ -1461,10 +1493,13 @@ $("#calcBtn").addEventListener("click", () => {
   if (errs.length) { showMsg("Check these inputs: " + errs.join(", ") + ".", "err"); return; }
 
   const selBullet = (() => { const i = parseInt(bulletSel.value, 10); return Number.isNaN(i) ? null : allBullets()[i]; })();
+  // Default unset/zero wind to 5 mph.
+  const windIn = num("#cWind");
+  const windSpeed = (windIn == null || windIn === 0) ? 5 : windIn;
   let opts = {
     muzzleVelocity: mv, bc: bcIn, dragModel: model, zeroRangeYd: zero, sightHeightIn: sight,
     maxRangeYd: maxR, stepYd: step, tempF: temp, pressureInHg: press,
-    windSpeed: num("#cWind"), windDirection: $("#cWindDir").value.trim() || null,
+    windSpeed: windSpeed, windDirection: $("#cWindDir").value.trim() || null,
     bulletWeightGr: num("#cBw"),
     bulletName: selBullet ? selBullet.name : "",
     caliber: selBullet ? (selBullet.group || "") : ""
