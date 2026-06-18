@@ -269,6 +269,12 @@
       <div class="hint" id="sdfHint"></div>
     </div>
 
+    <div class="card" id="gunCard">
+      <h2 style="margin:0 0 10px;">Gun MPH (wind number)</h2>
+      <div id="gunSummary" style="font-size:14px;"></div>
+      <div class="hint" id="gunHint"></div>
+    </div>
+
     <div class="card">
       <div class="row" style="justify-content: space-between; margin-bottom: 12px; gap:12px;">
         <h2 style="margin:0;">Output JSON</h2>
@@ -1038,7 +1044,65 @@ function computeSDF(ir, allowedError) {
            coarse: series.map(p => ({ range: p.range, mil: p.mil, factor: +(p.range / 100 - p.mil).toFixed(2) })) };
 }
 
-function emitBridger(ir, sourceName, profile, sdfValue) {
+/* ----------------------------------------------------------------------------
+   Gun MPH ("wind number"): the full-value (90°) wind speed that drifts the
+   bullet 0.1 mil per 100 yd — i.e. 0.6 mil @600yd or 1.0 mil @1000yd.
+   Windage is linear in wind speed, so from a card's windage at a known wind
+   speed:  gunMPH = sourceWind * targetMil / windageMil(atAnchor).
+   Auto-anchor: prefer 600yd; if that yields >=7 mph (high-BC loads), use 1000yd
+   for better near-range precision (per the article's note). Mil only.
+---------------------------------------------------------------------------- */
+function windageSeries(ir) {
+  const wcol = ir.columns.find(c => /^Windage$/i.test(c.name));
+  if (!wcol) return [];
+  const rows = ir.rows.slice().sort((a, b) => a.range - b.range);
+  const out = [];
+  for (const r of rows) {
+    const w = r[wcol.name];
+    if (w && typeof w === "object" && typeof w.signed === "number") {
+      out.push({ range: r.range, mil: Math.abs(w.signed) });
+    }
+  }
+  return out;
+}
+function windageAt(series, range) {
+  if (!series.length) return null;
+  const exact = series.find(p => p.range === range);
+  if (exact) return exact.mil;
+  // interpolate
+  for (let i = 1; i < series.length; i++) {
+    if (series[i].range >= range) {
+      const a = series[i - 1], b = series[i];
+      if (b.range === a.range) return a.mil;
+      const t = (range - a.range) / (b.range - a.range);
+      return a.mil + t * (b.mil - a.mil);
+    }
+  }
+  return null;
+}
+function computeGunMPH(ir) {
+  const srcWind = ir.canonical && ir.canonical.windSpeed ? ir.canonical.windSpeed.value : null;
+  if (!srcWind || srcWind <= 0) return null; // need non-zero wind on the card
+  const series = windageSeries(ir);
+  if (series.length < 2) return null;
+  const calc = (range, targetMil) => {
+    const w = windageAt(series, range);
+    if (!w || w <= 0) return null;
+    return srcWind * targetMil / w;
+  };
+  const g600 = calc(600, 0.6);
+  const g1000 = calc(1000, 1.0);
+  let anchor, gunMph;
+  if (g600 != null && g600 < 7) { anchor = 600; gunMph = g600; }
+  else if (g1000 != null) { anchor = 1000; gunMph = g1000; }
+  else if (g600 != null) { anchor = 600; gunMph = g600; }
+  else return null;
+  return { gunMph: +gunMph.toFixed(1), anchor, sourceWind: srcWind,
+           g600: g600 != null ? +g600.toFixed(2) : null,
+           g1000: g1000 != null ? +g1000.toFixed(2) : null };
+}
+
+function emitBridger(ir, sourceName, profile, sdfValue, gunMph) {
   const c = ir.canonical;
   const p = profile || {};
   const rows = ir.rows.slice().sort((a, b) => a.range - b.range);
@@ -1059,11 +1123,11 @@ function emitBridger(ir, sourceName, profile, sdfValue) {
   const pick = (v, fb) => { const s = (v == null ? "" : String(v)).trim(); return s || (fb || ""); };
   const caliber      = pick(p.caliber, ir.caliber);
   let rifleName      = pick(p.rifle, "");
-  // Append the Speed Drop Factor to the rifle name if provided, e.g. "Tikka SDF 2.5".
-  if (sdfValue != null && !Number.isNaN(sdfValue)) {
-    const tag = `SDF ${(+sdfValue).toFixed(1)}`;
-    rifleName = rifleName ? `${rifleName} ${tag}` : tag;
-  }
+  // Append Speed Drop Factor and Gun MPH to the rifle name, e.g. "Tikka SDF 2.5 GUN 2.7".
+  const tags = [];
+  if (sdfValue != null && !Number.isNaN(sdfValue)) tags.push(`SDF ${(+sdfValue).toFixed(1)}`);
+  if (gunMph != null && !Number.isNaN(gunMph)) tags.push(`GUN ${(+gunMph).toFixed(1)}`);
+  if (tags.length) rifleName = rifleName ? `${rifleName} ${tags.join(" ")}` : tags.join(" ");
   const manufacturer = pick(p.manufacturer, "");
   const model        = pick(p.model, ir.bulletName);
 
@@ -1144,15 +1208,34 @@ function renderSDF() {
   hint.textContent = "Computed at 25 yd (interpolated). Mil only. Appended to the rifle name in Bridger export as “SDF " + s.sdf.toFixed(1) + "”.";
 }
 
+let currentGun = null;
+function renderGun() {
+  currentGun = currentIR ? computeGunMPH(currentIR) : null;
+  const sum = $("#gunSummary"), hint = $("#gunHint"), card = $("#gunCard");
+  if (!currentGun) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  const g = currentGun;
+  sum.innerHTML =
+    `<strong style="font-size:18px;">${g.gunMph.toFixed(1)} MPH</strong> ` +
+    `<span style="color:var(--label)">(from ${g.sourceWind} mph card data, anchored at ${g.anchor}yd)</span><br>` +
+    `Full-value wind hold = (range ÷ 100 × 0.1) × (wind ÷ ${g.gunMph.toFixed(1)}).`;
+  hint.textContent = `Derived from the card's own windage. ${g.anchor === 1000 ? "Anchored at 1000yd (600yd needed ≥7 mph)." : "Anchored at 600yd = 0.6 mil."} Appended to rifle name as “GUN ${g.gunMph.toFixed(1)}”.`;
+}
+
 // Re-emit the output JSON from the stored IR per the selected format, and
 // refresh the preview. Called after a parse/calc and whenever the toggle changes.
 function rebuildOutput() {
   if (!currentIR) return;
   renderSDF();
+  renderGun();
   const fmt = $("#fmtSel").value;
   if (fmt === "bridger") {
     const sdfVal = currentSDF ? currentSDF.sdf : null;
-    currentJson = emitBridger(currentIR, currentSource, getProfile(), sdfVal);
+    const gunVal = currentGun ? currentGun.gunMph : null;
+    currentJson = emitBridger(currentIR, currentSource, getProfile(), sdfVal, gunVal);
     $("#fmtHint").textContent = "Bridger format: elevation comeup only (distance + angle), matching the RECKON import schema.";
   } else {
     currentJson = emit(currentIR, currentSource);
